@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulse-dev-config
+  namespace: pulse-dev
+data:
+  # ci profile: disables Azure AD OAuth2 (JWT-only auth) + rate limiting — lets the dev
+  # backend boot without real Azure creds / Microsoft egress. SSO is non-functional in dev;
+  # prod needs real Azure creds + a dedicated profile (see k8s/README.md).
+  SPRING_PROFILES_ACTIVE: "ci"
+  # ci disables AAD, but the app's WebSecurityConfiguration requires the AAD beans —
+  # so re-enable AAD (env overrides the ci profile) and give it a resolvable issuer.
+  # Real tenant + real client-id (neither is secret); client SECRET stays the ci dummy,
+  # so SSO can't actually complete in dev — boot only needs valid AAD properties + issuer.
+  SPRING_CLOUD_AZURE_ACTIVE_DIRECTORY_ENABLED: "true"
+  AZURE_CLIENT_ID: "d15587e6-6221-4a4c-9646-c883ef910c99"
+  SF_USERNAME: "dev-sf-disabled"
+  SERVER_PORT: "8080"
+  APP_URL: https://service8.nexedge.ae
+  CORS_ALLOWED_ORIGINS: https://service8.nexedge.ae
+  DB_HOST: "172.26.34.202"
+  DB_PORT: "5432"
+  DB_NAME: pulse_dev
+  DB_USER: pulse_dev
+  REDIS_HOST: "10.43.89.236"
+  REDIS_PORT: "6379"
+  REDIS_DATABASE: "3"
+  # Real org tenant GUID — REQUIRED for boot: Pulse eagerly resolves the Azure OAuth2
+  # issuer, and Microsoft rejects fake/empty GUIDs ("common" is also unparseable).
+  # client-id/secret stay as ci-profile dummies, so SSO login is non-functional in dev
+  # (boot only needs the issuer to resolve). Prod additionally needs real client creds +
+  # the service9 redirect URI registered in Azure.
+  AZURE_TENANT_ID: "0cdd8eb3-64c2-4d45-a670-857c71c73797"
+  TRANSLATION_PROVIDER: NONE
+  SF_DRY_RUN: "true"

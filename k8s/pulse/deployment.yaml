@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulse-server
+  namespace: pulse
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pulse-server }
+  template:
+    metadata:
+      labels: { app: pulse-server }
+    spec:
+      containers:
+        - name: pulse-server
+          image: 172.26.34.202:5000/pulse-server:stable
+          imagePullPolicy: Always
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: pulse-config }
+            - secretRef: { name: pulse-secrets }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 40
+            periodSeconds: 15

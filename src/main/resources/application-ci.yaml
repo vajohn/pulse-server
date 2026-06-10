@@ -1,0 +1,35 @@
+# CI profile — used in GitHub Actions load-test and contract-test jobs.
+# Disables rate limiting and Azure AD OAuth2 login (JWT-only auth is enough for CI).
+# Activate with: SPRING_PROFILES_ACTIVE=ci
+#
+# Provides safe placeholder defaults for Azure secrets not needed in JWT-only CI flows.
+# These defaults MUST NOT be used outside CI.
+
+rate-limiting:
+  enabled: false
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID:ci-not-configured}
+            client-secret: ${AZURE_CLIENT_SECRET:ci-not-configured}
+        provider:
+          azure:
+            issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID:00000000-0000-0000-0000-000000000000}/v2.0
+  cloud:
+    azure:
+      active-directory:
+        enabled: false
+        profile:
+          tenant-id: ${AZURE_TENANT_ID:00000000-0000-0000-0000-000000000000}
+        credential:
+          client-id: ${AZURE_CLIENT_ID:ci-not-configured}
+          client-secret: ${AZURE_CLIENT_SECRET:ci-not-configured}
+
+pulse:
+  dev:
+    auto-admin: false
+  deep-link-scheme: com.edge.pulse.dev

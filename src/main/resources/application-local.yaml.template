@@ -1,0 +1,58 @@
+# application-local.yaml.template
+#
+# Copy this file to application-local.yaml (gitignored) and fill in your values.
+# Activate the local profile in IntelliJ:
+#   Run → Edit Configurations → Spring Boot → Environment tab → Active profiles: local
+#
+# Alternatively, set each key as an environment variable in the run configuration
+# and use the IntelliJ EnvFile plugin to load from a gitignored .env.local file.
+#
+# Key generation:
+#   JWT_SECRET:      openssl rand -base64 32
+#   ENCRYPTION_KEY:  openssl rand -base64 32
+
+spring:
+  datasource:
+    password: <your-local-db-password>
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    password: <your-local-db-password>
+  data:
+    redis:
+      password: <your-local-redis-password-or-empty>
+
+AZURE_TENANT_ID: <azure-ad-tenant-uuid>
+AZURE_CLIENT_ID: <azure-app-registration-client-uuid>
+AZURE_CLIENT_SECRET: <azure-app-registration-client-secret>
+
+JWT_SECRET: <base64-encoded-32-byte-random-value>
+ENCRYPTION_KEY: <base64-encoded-32-byte-random-value>
+
+pulse:
+  deep-link-scheme: com.edge.pulse.dev
+  dev:
+    auto-admin: true   # set false to test real RBAC locally
+  sf:
+    # SAP SuccessFactors API credentials
+    username: <sf-api-username>
+    password: <sf-api-password>
+    dry-run: false
+    seed-on-startup: true
+    # SOCKS5 proxy — all SF requests are tunnelled through the KPS jump server.
+    # Before starting the app, open the tunnel in a separate terminal:
+    #
+    #   ssh -D 1080 -N -C admin@172.26.34.6
+    #
+    # Leave that terminal running. The app connects to localhost:1080 as a SOCKS5 proxy.
+    # SSH config alias (optional — add to ~/.ssh/config):
+    #   Host kps-jump
+    #       HostName 172.26.34.6
+    #       User admin
+    # Then you can run: ssh -D 1080 -N -C kps-jump
+    proxy:
+      host: 127.0.0.1
+      port: 1080

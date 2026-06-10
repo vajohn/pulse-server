@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: pulse
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ .Values.ingress.host }}
+  gateways:
+    - {{ .Values.ingress.gateway }}
+  http:
+    - route:
+        - destination:
+            host: pulse-server
+            port:
+              number: {{ .Values.port }}

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulse-config
+  namespace: pulse
+data:
+  # Mirrors pulse-dev (service8) config — differs only in DB name + Redis index + URLs.
+  # ci profile: rate-limiting OFF (matches dev per request; real-prod hardening = own
+  # profile with rate-limiting ON + dedicated prod Azure — tracked as follow-up).
+  SPRING_PROFILES_ACTIVE: "ci"
+  # ci disables AAD, but WebSecurityConfiguration needs the AAD beans → re-enable it,
+  # with a resolvable issuer. Real tenant + client-id (not secrets); client SECRET supplied
+  # via the secret (local Azure creds). SSO needs the service9 redirect URI in Azure.
+  SPRING_CLOUD_AZURE_ACTIVE_DIRECTORY_ENABLED: "true"
+  AZURE_CLIENT_ID: "d15587e6-6221-4a4c-9646-c883ef910c99"
+  AZURE_TENANT_ID: "0cdd8eb3-64c2-4d45-a670-857c71c73797"
+  SF_USERNAME: "prod-sf-disabled"
+  SERVER_PORT: "8080"
+  APP_URL: https://service9.nexedge.ae
+  CORS_ALLOWED_ORIGINS: https://service9.nexedge.ae
+  DB_HOST: "172.26.34.202"
+  DB_PORT: "5432"
+  DB_NAME: pulse
+  DB_USER: pulse
+  REDIS_HOST: "10.43.89.236"
+  REDIS_PORT: "6379"
+  REDIS_DATABASE: "2"
+  TRANSLATION_PROVIDER: NONE
+  SF_DRY_RUN: "true"

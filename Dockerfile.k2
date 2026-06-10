@@ -1,0 +1,7 @@
+# k2 (air-gapped) build — base pulled from the internal registry, not docker.io.
+# The eclipse-temurin:25-jre-alpine base is loaded into 172.26.34.205:5000/infra/ once.
+FROM 172.26.34.205:5000/infra/eclipse-temurin:25-jre-alpine
+WORKDIR /app
+COPY build/libs/pulse-*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]

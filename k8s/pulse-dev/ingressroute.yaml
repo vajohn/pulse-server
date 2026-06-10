@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: pulse-dev-ingress
+  namespace: pulse-dev
+spec:
+  entryPoints: [websecure]
+  routes:
+    - kind: Rule
+      match: Host(`service8.nexedge.ae`)
+      services:
+        - name: pulse-server
+          port: 8080
+  tls:
+    secretName: kps-tls-cert

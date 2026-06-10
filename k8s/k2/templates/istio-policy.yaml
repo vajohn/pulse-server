@@ -1,0 +1,40 @@
+---
+# (1) Inbound to pulse-server (port 8080, mobile app API): only the Istio ingress
+#     gateway may reach it (external traffic from the assigned nexedge.ae host).
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: pulse-server
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: pulse-server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+---
+# (2) Allow pulse-server to CALL x4auth-server. Istio ALLOW policies are additive,
+#     so this augments x4auth's existing inbound policy without editing the x4auth chart.
+#     Required because the mesh is default-deny for service-to-service traffic.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: x4auth-allow-pulse
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: x4auth-server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/{{ .Release.Namespace }}/sa/pulse-server
+      to:
+        - operation:
+            paths: ["/oauth/token", "/.well-known/jwks.json"]

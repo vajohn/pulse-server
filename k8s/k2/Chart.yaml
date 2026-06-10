@@ -1,0 +1,8 @@
+apiVersion: v2
+name: pulse
+description: Pulse Spring Boot backend — k2 (air-gapped, tasdiq-dev) deployment
+type: application
+version: 0.1.0
+appVersion: "dev"
+# Modeled on the x4mahara chart (PI/x4mahara: XMaharaServer/k8s/helm/mahara) so Pulse
+# is co-located with x4auth-server in tasdiq-dev and reaches it via in-cluster DNS.

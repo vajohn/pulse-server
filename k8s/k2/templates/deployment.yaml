@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulse-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pulse.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "pulse.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: pulse-server
+      # No migrate initContainer: Pulse runs Flyway at application startup against
+      # the DB_* / pulse-secrets values below (single squashed V1 baseline + V2+).
+      containers:
+        - name: pulse-server
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: pulse-config
+            - secretRef:
+                name: {{ .Values.secretName }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # Flyway + Spring context can take a while; startupProbe guards the slow boot
+          # so liveness doesn't kill the pod mid-migration.
+          startupProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 18      # up to ~3 min for first boot/migrations
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3

@@ -1,0 +1,140 @@
+spring:
+  application:
+    name: pulse
+  profiles:
+    # Default profile "azure" keeps Azure/Entra login ON — preserves current KPS/dev/test
+    # behavior. The air-gapped k2 deployment sets SPRING_PROFILES_ACTIVE=k2 (no azure), so the
+    # Azure OAuth2 client config (application-azure.yaml) and the AAD security chain are absent
+    # and Pulse runs X4Auth-only with no calls to login.microsoftonline.com at startup.
+    active: azure
+    group:
+      local: azure   # local dev also activates azure
+  mvc:
+    async:
+      request-timeout: 25000
+  jackson:
+    deserialization:
+      fail-on-null-for-primitives: false
+  # NOTE: Azure OAuth2 client + spring.cloud.azure config live in application-azure.yaml
+  # (loaded only under the "azure" profile) so the air-gapped k2 profile has no Microsoft
+  # issuer-uri to resolve at startup.
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:pulse}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    user: ${DB_USER:postgres}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 5000
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+encryption:
+  key: ${ENCRYPTION_KEY}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,com.edge.pulse.dev://}
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "Authorization,Content-Type,Accept,X-Requested-With,Cache-Control,X-Device-Attestation"
+  max-age: 3600
+
+falcon:
+  # Set FALCON_API_KEY to enable AI features; leave empty to return 503 from /api/ai/chat.
+  api-key: ${FALCON_API_KEY:}
+  endpoint: https://chat.falconllm.tii.ae/inference/falcon-h1-7b-instruct/v1/chat/completions
+  model: falcon-h1-7b-instruct
+  timeout-seconds: 60
+  max-tokens: 1024
+
+logging:
+  level:
+    root: INFO
+    com.edge.pulse: DEBUG
+
+survey:
+  default-anon-window-minutes: 60
+
+pulse:
+  deep-link-scheme: ${DEEP_LINK_SCHEME:com.edge.pulse.dev}
+  dev:
+    auto-admin: false
+  cache:
+    permission-ttl-minutes: ${PERMISSION_CACHE_TTL_MINUTES:5}
+    assignment-ttl-minutes: ${ASSIGNMENT_CACHE_TTL_MINUTES:10}
+    session-ttl-minutes: ${SESSION_CACHE_TTL_MINUTES:120}
+    anon-pulse-id-ttl-hours: ${ANON_PULSE_ID_TTL_HOURS:24}
+    oauth-code-ttl-seconds: ${OAUTH_CODE_TTL_SECONDS:60}
+    oauth-dedup-ttl-seconds: ${OAUTH_DEDUP_TTL_SECONDS:30}
+  translation:
+    provider:          ${TRANSLATION_PROVIDER:NONE}
+    cache-ttl-days:    ${TRANSLATION_CACHE_TTL_DAYS:7}
+    # Set to 5000 for MyMemory anonymous mode, 50000 for MyMemory registered mode (MYMEMORY_EMAIL set).
+    daily-char-budget: ${TRANSLATION_DAILY_CHAR_BUDGET:50000}
+    azure:
+      key:      ${AZURE_TRANSLATOR_KEY:}
+      region:   ${AZURE_TRANSLATOR_REGION:}
+      endpoint: ${AZURE_TRANSLATOR_ENDPOINT:https://api.cognitive.microsofttranslator.com}
+    mymemory:
+      email: ${MYMEMORY_EMAIL:}
+      key:   ${MYMEMORY_KEY:}
+  analytics:
+    view-refresh-ms: ${ANALYTICS_VIEW_REFRESH_MS:300000}
+  retention:
+    survey-response-years: 2
+    audit-log-years: 7
+    cron: "0 0 2 * * *"   # daily 02:00 UTC; override via env var RETENTION_CRON
+  entra:
+    sync:
+      cron: "0 0 3 * * *"    # daily 03:00 UTC (after retention at 02:00); override via ENTRA_SYNC_CRON
+      stale-hours: 23          # users not synced in 23h are re-provisioned; override ENTRA_SYNC_STALE_HOURS
+  sf:
+    base-url: ${SF_BASE_URL:https://api22preview.sapsf.com/odata/v2}
+    username: ${SF_USERNAME}
+    password: ${SF_PASSWORD}
+    page-size: ${SF_PAGE_SIZE:500}
+    dry-run: ${SF_DRY_RUN:false}
+    proxy:
+      host: ${SF_PROXY_HOST:}
+      port: ${SF_PROXY_PORT:1080}
+    sync:
+      full-cron: "0 0 1 * * *"    # nightly 01:00 UTC; override via SF_FULL_SYNC_CRON
+      delta-cron: "0 0 */6 * * *" # every 6h; override via SF_DELTA_SYNC_CRON
+
+rate-limiting:
+  enabled: true
+  bucket4j:
+    capacity: 100
+    refill-tokens: 100
+    refill-duration: 60
+    strategy: user-ip
+
+# X4Auth (Tasdiq) OAuth2 push authentication — air-gapped k2 replacement for Azure/Entra login.
+# Empty defaults = feature self-disables (/api/auth/x4auth/config -> enabled:false) until configured,
+# so this is additive and dormant until the k2 deployment sets these via a k8s secret/configmap.
+# On k2 (co-located in tasdiq-dev): X4AUTH_BASE_URL=http://x4auth-server.tasdiq-dev.svc.cluster.local:5000
+x4auth:
+  base-url: ${X4AUTH_BASE_URL:}
+  client-id: ${X4AUTH_CLIENT_ID:}
+  client-secret: ${X4AUTH_CLIENT_SECRET:}
+  oauth-scope: ${X4AUTH_OAUTH_SCOPE:openid profile email roles}
+  timeout: ${X4AUTH_TIMEOUT:30000}

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulse-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse.labels" . | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+  # X4Auth reached pod-to-pod in the SAME namespace (co-located, exactly like x4mahara).
+  # Resolves to e.g. http://x4auth-server.tasdiq-dev.svc.cluster.local:5000
+  X4AUTH_BASE_URL: {{ printf "http://x4auth-server.%s.svc.cluster.local:5000" .Release.Namespace | quote }}

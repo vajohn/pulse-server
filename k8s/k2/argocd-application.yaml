@@ -1,0 +1,26 @@
+# Argo CD Application to adopt Pulse into the k2 GitOps repo (tasdiq-dev).
+# Copy this chart to k2-gitops (charts/pulse + values/pulse/dev.yaml) and point the
+# source at it, OR keep the chart here and set source.repoURL/path accordingly.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pulse-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ssh://git@bitbucket.katim.com:7999/pi/k2-gitops.git
+    targetRevision: HEAD
+    path: charts/pulse          # where this chart lands in k2-gitops
+    helm:
+      valueFiles:
+        - ../../values/pulse/dev.yaml   # adjust to the k2-gitops values layout
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tasdiq-dev
+  syncPolicy:
+    # tasdiq-dev historically does NOT auto-sync (TLS EOF to argocd from Mac) —
+    # trigger manually from k2-master after promote. See k2-deploy skill.
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
