@@ -8,23 +8,15 @@ spring:
     client:
       connect-timeout: ${HTTP_CLIENT_CONNECT_TIMEOUT:10s}
       read-timeout: ${HTTP_CLIENT_READ_TIMEOUT:30s}
-  profiles:
-    # Default profile "azure" keeps Azure/Entra login ON — preserves current KPS/dev/test
-    # behavior. The air-gapped k2 deployment sets SPRING_PROFILES_ACTIVE=k2 (no azure), so the
-    # Azure OAuth2 client config (application-azure.yaml) and the AAD security chain are absent
-    # and Pulse runs X4Auth-only with no calls to login.microsoftonline.com at startup.
-    active: azure
-    group:
-      local: azure   # local dev also activates azure
+  # Azure/Entra login removed — login is X4Auth-only. No default profile is set;
+  # local dev uses SPRING_PROFILES_ACTIVE=local, k2 uses k2, CI uses ci. The single
+  # security config (noAzureFilterChain) is unconditional, so no profile gates auth.
   mvc:
     async:
       request-timeout: 25000
   jackson:
     deserialization:
       fail-on-null-for-primitives: false
-  # NOTE: Azure OAuth2 client + spring.cloud.azure config live in application-azure.yaml
-  # (loaded only under the "azure" profile) so the air-gapped k2 profile has no Microsoft
-  # issuer-uri to resolve at startup.
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:pulse}
     username: ${DB_USER:postgres}

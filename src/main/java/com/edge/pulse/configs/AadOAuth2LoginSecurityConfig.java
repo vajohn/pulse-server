@@ -1,12 +1,9 @@
 package com.edge.pulse.configs;
 
-import com.azure.spring.cloud.autoconfigure.implementation.aad.security.AadWebApplicationHttpSecurityConfigurer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -14,7 +11,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,6 +20,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+/**
+ * Pulse HTTP security configuration. After the Azure/Entra removal this is the sole
+ * security config: an {@code @Order(1)} JWT chain for {@code /api/**} and an
+ * {@code @Order(2)} catch-all with no OAuth2/AAD. Login is X4Auth-only.
+ * (Class name retained to avoid churn; it no longer configures AAD.)
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -51,41 +53,18 @@ public class AadOAuth2LoginSecurityConfig {
                 })
             )
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/exchange", "/api/auth/x4auth/**", "/api/health/**", "/api/admin/sf/users/export").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/exchange", "/api/auth/x4auth/**", "/api/health/**").permitAll()
                 .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().authenticated()
             );
         return http.build();
     }
 
-    // Azure/Entra login chain — only under the "azure" profile. The AAD configurer and
-    // oauth2Login depend on the Azure OAuth2 client config in application-azure.yaml; gating
-    // both on the same profile keeps them in lockstep. Absent on the air-gapped k2 profile,
-    // so no Microsoft OIDC discovery is attempted at startup.
-    @Bean
-    @Order(2)
-    @Profile("azure")
-    SecurityFilterChain oauthFilterChain(HttpSecurity http) throws Exception {
-        http
-            .with(AadWebApplicationHttpSecurityConfigurer.aadWebApplication(), Customizer.withDefaults())
-            .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/auth/login").permitAll()
-                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2Login(oauth2 -> oauth2.successHandler(
-                new SimpleUrlAuthenticationSuccessHandler("/login/success")
-            ));
-        return http.build();
-    }
-
-    // No-Azure catch-all chain for non-"azure" profiles (e.g. air-gapped k2). Provides the
     // @Order(2) catch-all that the apiFilterChain (/api/**) does not cover, with NO oauth2Login
-    // and NO AAD configurer — so the context loads with no Microsoft dependency. On k2 the
-    // /api/auth/x4auth/** endpoints (permitAll in apiFilterChain) are the live login path.
+    // and NO AAD configurer — so the context loads with no Microsoft dependency. Login is
+    // X4Auth-only: the /api/auth/x4auth/** endpoints (permitAll in apiFilterChain) are the live path.
     @Bean
     @Order(2)
-    @Profile("!azure")
     SecurityFilterChain noAzureFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)

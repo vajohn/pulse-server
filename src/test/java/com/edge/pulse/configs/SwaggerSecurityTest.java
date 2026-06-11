@@ -28,7 +28,7 @@ class SwaggerSecurityTest {
 
     private final AntPathMatcher matcher = new AntPathMatcher();
 
-    /** Mirrors the four patterns in AadOAuth2LoginSecurityConfig.oauthFilterChain permitAll(). */
+    /** Mirrors the four Swagger patterns permitAll'd in the @Order(2) noAzureFilterChain. */
     private boolean isPermitted(String requestPath) {
         return matcher.match("/swagger-ui/**", requestPath)
                 || matcher.match("/swagger-ui.html", requestPath)
@@ -106,7 +106,7 @@ class SwaggerSecurityTest {
     @Test
     void swaggerPaths_areOutsideApiFilterChainScope() {
         // apiFilterChain uses securityMatcher("/api/**") so it only processes /api/** requests.
-        // Swagger paths do not start with /api/ — they are handled by oauthFilterChain only.
+        // Swagger paths do not start with /api/ — they are handled by the @Order(2) catch-all chain.
         String[] swaggerPaths = {
                 "/swagger-ui.html",
                 "/swagger-ui/index.html",
