@@ -11,7 +11,7 @@ public enum PermissionName {
     USR_UPDATE("Edit user profile fields"),
     USR_DELETE("Deactivate users (SF handles removal via sync)"),
     USR_ROLE_ASSIGN("Assign and remove roles from users"),
-    USR_IMPORT("Trigger and monitor bulk SF / Entra directory sync"),
+    USR_IMPORT("Trigger and monitor bulk directory sync from saf-recon"),
     USR_ALL("All user management permissions"),
 
     // ── ORG — Org Unit Management ────────────────────────────────────────────
@@ -23,7 +23,7 @@ public enum PermissionName {
     ORG_ALL("All org unit management permissions"),
 
     // ── SYNC — Directory Sync ────────────────────────────────────────────────
-    SYNC_TRIGGER("Trigger a full or delta SF / Entra directory sync job"),
+    SYNC_TRIGGER("Trigger a directory sync job (employee/org data from saf-recon)"),
     SYNC_STATUS("View sync job results, error reports, skipped users"),
     SYNC_ALL("All directory sync permissions"),
 

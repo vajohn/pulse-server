@@ -73,7 +73,7 @@ public class X4AuthService {
         if (props.getBaseUrl() != null && !props.getBaseUrl().isBlank()) {
             // Both clients are built from the (per-injection) builder so they share one
             // request factory — which lets MockRestServiceServer intercept both in tests.
-            // Mirrors MicrosoftGraphService's use of the injected RestClient.Builder.
+            // Builds both clients from the injected RestClient.Builder (shared request factory).
             this.client = restClientBuilder.baseUrl(props.getBaseUrl()).build();
             this.jwksClient = restClientBuilder.build();
         } else {
