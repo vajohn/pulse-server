@@ -1,6 +1,7 @@
 package com.edge.pulse.repositories;
 
 import com.edge.pulse.data.models.User;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -41,6 +42,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     List<User> findAllBySfUserIdIn(Collection<String> sfUserIds);
 
     /** Eager-loads roles to avoid LazyInitializationException during role reconciliation. */
-    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "roles")
+    @EntityGraph(attributePaths = "roles")
     Optional<User> findWithRolesByEmail(String email);
 }

@@ -156,7 +156,7 @@ class SafReconDirectorySyncServiceTest {
         verify(userRepo, never()).save(argThat(u -> u.getEmail() != null && u.getEmail().equalsIgnoreCase("dup@edge.ae")));
         assertThat(existing.getDisplayName()).isEqualTo("Original");
         assertThat(existing.isActive()).isTrue();
-        assertThat(result.errors()).isGreaterThanOrEqualTo(2); // skipped rolled into errors
+        assertThat(result.errors()).isEqualTo(2); // 2 duplicate records skipped, rolled into errors
     }
 
     @Test
