@@ -110,10 +110,6 @@ pulse:
     survey-response-years: 2
     audit-log-years: 7
     cron: "0 0 2 * * *"   # daily 02:00 UTC; override via env var RETENTION_CRON
-  entra:
-    sync:
-      cron: "0 0 3 * * *"    # daily 03:00 UTC (after retention at 02:00); override via ENTRA_SYNC_CRON
-      stale-hours: 23          # users not synced in 23h are re-provisioned; override ENTRA_SYNC_STALE_HOURS
   saf-recon:
     sync:
       full-cron: ${PULSE_SAF_SYNC_CRON:0 0 1 * * *}  # nightly 01:00 UTC
