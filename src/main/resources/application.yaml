@@ -119,6 +119,18 @@ pulse:
     sync:
       full-cron: "0 0 1 * * *"    # nightly 01:00 UTC; override via SF_FULL_SYNC_CRON
       delta-cron: "0 0 */6 * * *" # every 6h; override via SF_DELTA_SYNC_CRON
+  saf-recon:
+    sync:
+      full-cron: ${PULSE_SAF_SYNC_CRON:0 0 1 * * *}  # nightly 01:00 UTC
+
+# saf-recon-server integration (k2). saf-recon is the sole upstream for employee/org data.
+# Blank base-url/username/password => the sync self-disables (non-k2 contexts unaffected).
+saf-recon:
+  base-url: ${SAF_RECON_URL:}
+  username: ${SAF_RECON_USERNAME:}
+  password: ${SAF_RECON_PASSWORD:}
+  page-size: ${SAF_RECON_PAGE_SIZE:200}
+  deactivate-floor: ${SAF_RECON_DEACTIVATE_FLOOR:50}
 
 rate-limiting:
   enabled: true
