@@ -39,4 +39,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     /** Batch lookup by SF user IDs — used to scope profile pre-load to the current sync batch. */
     List<User> findAllBySfUserIdIn(Collection<String> sfUserIds);
+
+    /** Eager-loads roles to avoid LazyInitializationException during role reconciliation. */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "roles")
+    Optional<User> findWithRolesByEmail(String email);
 }
