@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -51,10 +52,16 @@ public class SafReconClient {
 
     /** GET with bearer auth; on 401 re-auth once and retry. */
     private <T> T get(String uri, ParameterizedTypeReference<T> type) {
-        if (token == null) authenticate();
+        // Double-checked lock: a concurrent manual sync (B6) + scheduled sync must not both
+        // race a null token into two separate auth calls.
+        if (token == null) {
+            synchronized (this) {
+                if (token == null) authenticate();
+            }
+        }
         try {
             return doGet(uri, type);
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
+        } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
                 log.info("saf-recon 401 — re-authenticating");
                 authenticate();

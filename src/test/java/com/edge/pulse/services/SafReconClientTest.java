@@ -5,13 +5,16 @@ import com.edge.pulse.data.dto.safrecon.SafReconEmployeePage;
 import com.edge.pulse.data.dto.safrecon.SafReconOrgUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
@@ -36,6 +39,8 @@ class SafReconClientTest {
     @Test
     void fetchOrgUnits_authenticatesThenReturnsList() {
         server.expect(requestTo("http://saf-recon:8081/api/v1/auth/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andRespond(withSuccess("{\"token\":\"T1\",\"expiresIn\":900}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://saf-recon:8081/api/v1/org-units"))
                 .andExpect(header("Authorization", "Bearer T1"))
@@ -45,6 +50,34 @@ class SafReconClientTest {
 
         assertThat(units).hasSize(1);
         assertThat(units.get(0).sfCode()).isEqualTo("X");
+        server.verify();
+    }
+
+    @Test
+    void fetchOrgUnits_reusesCachedToken() {
+        String body = "[{\"id\":\"11111111-1111-1111-1111-111111111111\",\"sfCode\":\"X\",\"name\":\"X\",\"level\":\"GROUP\",\"parentId\":null,\"path\":\"\",\"depth\":0,\"companyCode\":null}]";
+        server.expect(requestTo("http://saf-recon:8081/api/v1/auth/token"))
+                .andRespond(withSuccess("{\"token\":\"T1\",\"expiresIn\":900}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://saf-recon:8081/api/v1/org-units"))
+                .andExpect(header("Authorization", "Bearer T1"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://saf-recon:8081/api/v1/org-units"))
+                .andExpect(header("Authorization", "Bearer T1"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        client.fetchOrgUnits();
+        client.fetchOrgUnits();   // second call must reuse the cached token (no second auth)
+
+        server.verify();          // exactly 1 auth + 2 data calls; a re-auth would break ordering
+    }
+
+    @Test
+    void authFailure_propagates() {
+        server.expect(requestTo("http://saf-recon:8081/api/v1/auth/token"))
+                .andRespond(withUnauthorizedRequest());
+
+        assertThatThrownBy(() -> client.fetchOrgUnits())
+                .isInstanceOf(HttpClientErrorException.class);
         server.verify();
     }
 

@@ -1,6 +1,13 @@
 spring:
   application:
     name: pulse
+  # Global HTTP client timeouts for the auto-configured RestClient.Builder (SafReconClient,
+  # X4AuthService). Bounds pod-to-pod calls so a hung upstream can't stall a worker thread
+  # indefinitely. Per-client builders in tests (MockRestServiceServer) are unaffected.
+  http:
+    client:
+      connect-timeout: ${HTTP_CLIENT_CONNECT_TIMEOUT:10s}
+      read-timeout: ${HTTP_CLIENT_READ_TIMEOUT:30s}
   profiles:
     # Default profile "azure" keeps Azure/Entra login ON — preserves current KPS/dev/test
     # behavior. The air-gapped k2 deployment sets SPRING_PROFILES_ACTIVE=k2 (no azure), so the

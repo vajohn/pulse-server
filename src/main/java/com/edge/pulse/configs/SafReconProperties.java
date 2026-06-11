@@ -21,8 +21,6 @@ public class SafReconProperties {
     private String username;
     /** Service-account plaintext password (k8s secret — never defaulted). */
     private String password;
-    /** HTTP timeout (ms) for calls to saf-recon. */
-    private int timeout = 10000;
     /** Page size for the paged /employees pull. */
     private int pageSize = 200;
     /**
