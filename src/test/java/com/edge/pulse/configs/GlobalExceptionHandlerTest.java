@@ -14,8 +14,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,6 +54,9 @@ class GlobalExceptionHandlerTest {
         void throwForbidden() {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+
+        @GetMapping("/test/required-param")
+        String requiredParam(@RequestParam UUID periodId) { return periodId.toString(); }
     }
 
     @BeforeEach
@@ -152,5 +158,21 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/forbidden"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403));
+    }
+
+    // ── Task 5: missing / mistyped @RequestParam → 400 ──────────────────────
+
+    @Test
+    void missingRequiredParam_returns400() throws Exception {
+        mockMvc.perform(get("/test/required-param"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void malformedUuidParam_returns400() throws Exception {
+        mockMvc.perform(get("/test/required-param").param("periodId", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
     }
 }

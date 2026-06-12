@@ -9,8 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -99,6 +101,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleNoResourceFound(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError(404, "Resource not found"));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParam(MissingServletRequestParameterException ex) {
+        ApiError.FieldError fe = new ApiError.FieldError(ex.getParameterName(), "required parameter is missing");
+        return ResponseEntity.badRequest()
+                .body(new ApiError(400, "Missing required parameter: " + ex.getParameterName(), List.of(fe)));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ApiError.FieldError fe = new ApiError.FieldError(ex.getName(), "invalid value");
+        return ResponseEntity.badRequest()
+                .body(new ApiError(400, "Invalid value for parameter: " + ex.getName(), List.of(fe)));
     }
 
     @ExceptionHandler(Exception.class)
