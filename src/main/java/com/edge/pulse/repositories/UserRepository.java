@@ -37,6 +37,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<String> findCompanyCodeById(UUID userId);
 
     Optional<User> findBySfUserId(String sfUserId);
+    Optional<User> findByEmployeeId(String employeeId);
 
     /** Batch lookup by SF user IDs — used to scope profile pre-load to the current sync batch. */
     List<User> findAllBySfUserIdIn(Collection<String> sfUserIds);
