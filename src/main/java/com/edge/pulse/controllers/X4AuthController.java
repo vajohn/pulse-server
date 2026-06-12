@@ -134,6 +134,9 @@ public class X4AuthController {
                     .orElseGet(() -> autoProvision(email, approved, http.getRemoteAddr()));
         }
 
+        // TODO(tech-debt): Future — Pulse should verify the Tasdiq (X4Auth) token directly on each
+        // request and stop minting a separate Pulse JWT here, collapsing to a single token / pure
+        // resource-server model. Tracked as tech debt; see the 2026-06-12 identity-hardening spec.
         String accessToken = jwtTokenService.generateAccessToken(user);
         String refreshToken = jwtTokenService.generateRefreshToken(
                 user, http.getHeader("User-Agent"), http.getRemoteAddr());
