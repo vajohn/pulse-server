@@ -32,4 +32,12 @@ public class X4AuthProperties {
     private String oauthScope = "openid profile email roles";
     /** HTTP timeout in milliseconds for calls to X4Auth. */
     private int timeout = 30000;
+    /**
+     * Login user-resolution strategy:
+     *   EMAIL                   — legacy/transitional: match by email, auto-provision a bare EMPLOYEE if absent.
+     *   EMPLOYEE_NUMBER_STRICT  — target: match by the x4auth:employeeId claim against a synced saf employee;
+     *                             reject login if no match (no bare auto-provisioning).
+     * Default EMAIL so Pulse can deploy before X4Auth emits the employeeId claim; k2 gitops flips to STRICT.
+     */
+    private String matchMode = "EMAIL";
 }

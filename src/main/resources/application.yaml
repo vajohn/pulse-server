@@ -133,3 +133,4 @@ x4auth:
   client-secret: ${X4AUTH_CLIENT_SECRET:}
   oauth-scope: ${X4AUTH_OAUTH_SCOPE:openid profile email roles}
   timeout: ${X4AUTH_TIMEOUT:30000}
+  match-mode: ${X4AUTH_MATCHMODE:EMAIL}
