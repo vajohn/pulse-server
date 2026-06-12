@@ -33,6 +33,12 @@ public class AnonIdentityService {
     private final FormCacheService cacheService;
 
     public AnonIdentity resolveOrCreate(UUID formId, UUID orgUnitId, String incomingToken, int windowMinutes) {
+        // Defense-in-depth: windowMinutes is the divisor for window bucketing below. A value < 1
+        // (e.g. a form persisted with anonWindowMinutes = 0 before validation was added) would throw
+        // ArithmeticException "/ by zero". Coerce to the default 60-minute window instead of 500ing.
+        if (windowMinutes < 1) {
+            windowMinutes = 60;
+        }
         // If a token was provided, try cache first (by hash), then DB
         if (incomingToken != null) {
             String incomingHash = sha256(incomingToken);
