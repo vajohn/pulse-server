@@ -8,9 +8,11 @@ import com.edge.pulse.repositories.UserRepository;
 import com.edge.pulse.services.AuditService;
 import com.edge.pulse.services.JwtTokenService;
 import com.edge.pulse.services.PermissionCacheService;
+import com.edge.pulse.configs.X4AuthProperties;
 import com.edge.pulse.services.X4AuthService;
 import com.edge.pulse.services.X4AuthService.InitiateResult;
 import com.edge.pulse.services.X4AuthService.PollResult;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -35,7 +37,7 @@ import java.util.Set;
  * the existing login endpoints. The client→server contract mirrors the proven x4mahara integration:
  * {@code config → initiate → status/{txn} → complete}.
  *
- * <p>User resolution on {@code /complete} is governed by {@link com.edge.pulse.configs.X4AuthProperties#getMatchMode()}:
+ * <p>User resolution on {@code /complete} is governed by {@link X4AuthProperties#getMatchMode()}:
  * <ul>
  *   <li><b>EMPLOYEE_NUMBER_STRICT</b> — matches the {@code x4auth:employeeId} claim against a
  *       saf-synced Pulse employee ({@code findByEmployeeId} then {@code findBySfUserId} fallback);
@@ -60,10 +62,15 @@ public class X4AuthController {
     private final JwtTokenService jwtTokenService;
     private final PermissionCacheService permissionCacheService;
     private final AuditService auditService;
-    private final com.edge.pulse.configs.X4AuthProperties x4AuthProperties;
+    private final X4AuthProperties x4AuthProperties;
 
     public record InitiateRequest(@NotBlank @Email String email) {}
     public record CompleteRequest(@NotBlank String transactionId) {}
+
+    @PostConstruct
+    void logMatchMode() {
+        log.info("X4Auth login match-mode = {}", x4AuthProperties.getMatchMode());
+    }
 
     @GetMapping("/config")
     public Map<String, Object> config() {

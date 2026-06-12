@@ -17,10 +17,16 @@
 --   * audit_logs.user_id        — always has rows for a logged-in user (autoprovision + login)
 --   * response_session.user_id  — has rows only if the user opened a survey/test session
 --     (+ its answer_submission / answer_* children)
--- "Authored/created-by" columns (form_assignment.assigned_by, nominations.nominator_id,
--- award_periods.created_by, *_published_by, etc.) cannot have rows for a bare login user —
--- they have no permissions to create such records — so they are not handled here. If a future
--- target set is broader, re-check the FK list (pg_constraint where confrelid='users') first.
+-- Spark tables with NO ACTION FKs on users that CAN have rows for bare login users (V4 grants
+-- EMPLOYEE SPARK_NOMINATE + SPARK_VOTE, so these users may have created nominations/votes/congrats):
+--   * nominations.nominator_id
+--   * leader_votes.leader_id
+--   * spark_congratulations.user_id
+-- These MUST be cleared before the final DELETE FROM users below.
+-- Other "authored/created-by" columns (form_assignment.assigned_by, award_periods.created_by,
+-- *_published_by, etc.) still cannot have rows for a bare login user (require elevated permissions)
+-- and are not handled here. If a future target set is broader, re-check the FK list
+-- (pg_constraint where confrelid='users') first.
 --
 -- RUN ORDER:
 --   1) Run the DRY-RUN SELECT, review the count + sample.
@@ -56,7 +62,13 @@ DELETE FROM response_session WHERE user_id IN (SELECT id FROM users WHERE sf_use
 -- 2) Audit log rows — NO ACTION FK, always present for a logged-in user.
 DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE sf_user_id IS NULL AND org_unit_id IS NULL AND azure_ad_id IS NULL AND last_login_at IS NOT NULL);
 
--- 3) The bare users themselves. ON DELETE CASCADE removes user_roles, sessions (refresh
+-- 3) Spark rows — NO ACTION FKs; V4 grants EMPLOYEE SPARK_NOMINATE + SPARK_VOTE so bare login
+--    users CAN own rows in these tables.
+DELETE FROM spark_congratulations WHERE user_id IN (SELECT id FROM users WHERE sf_user_id IS NULL AND org_unit_id IS NULL AND azure_ad_id IS NULL AND last_login_at IS NOT NULL);
+DELETE FROM leader_votes WHERE leader_id IN (SELECT id FROM users WHERE sf_user_id IS NULL AND org_unit_id IS NULL AND azure_ad_id IS NULL AND last_login_at IS NOT NULL);
+DELETE FROM nominations WHERE nominator_id IN (SELECT id FROM users WHERE sf_user_id IS NULL AND org_unit_id IS NULL AND azure_ad_id IS NULL AND last_login_at IS NOT NULL);
+
+-- 4) The bare users themselves. ON DELETE CASCADE removes user_roles, sessions (refresh
 --    tokens), user_permissions, user_org_unit, user_groups, user_teams, user_sf_profile.
 DELETE FROM users WHERE sf_user_id IS NULL AND org_unit_id IS NULL AND azure_ad_id IS NULL AND last_login_at IS NOT NULL;
 

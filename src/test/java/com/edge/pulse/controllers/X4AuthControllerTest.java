@@ -38,10 +38,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * L1 verification (DB-free) for the additive X4Auth broker.
  *
- * <p>Proves the Pulse-side correctness of the air-gapped login replacement:
- * an approved X4Auth identity yields Pulse JWTs, an unknown email is auto-provisioned
- * as EMPLOYEE, and a not-approved transaction is rejected with 401 — all without
- * touching the live X4Auth server, the database, or the existing Azure flow.
+ * <p>Covers both match modes: EMPLOYEE_NUMBER_STRICT (match by employeeId → 200; no match → 403,
+ * no auto-provision) and legacy EMAIL mode (match by email; unknown user auto-provisioned as
+ * EMPLOYEE). Also verifies that an approved identity yields Pulse JWTs and a not-approved
+ * transaction is rejected with 401 — all without touching the live X4Auth server, the database,
+ * or the existing Azure flow.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
