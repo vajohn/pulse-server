@@ -110,7 +110,7 @@ class X4AuthControllerTest {
     @Test
     void status_returnsStatusAndApprovedFlag() throws Exception {
         when(x4AuthService.poll("txn-123"))
-                .thenReturn(new PollResult("approved", "jane@edge.ae", "Jane", "Ops"));
+                .thenReturn(new PollResult("approved", "jane@edge.ae", "Jane", "Ops", null));
 
         mockMvc.perform(get("/api/auth/x4auth/status/txn-123"))
                 .andExpect(status().isOk())
@@ -122,7 +122,7 @@ class X4AuthControllerTest {
     void complete_approvedExistingUser_issuesPulseTokens() throws Exception {
         when(x4AuthService.isConfigured()).thenReturn(true);
         when(x4AuthService.consumeApproved("txn-123"))
-                .thenReturn(new PollResult("approved", "jane@edge.ae", "Jane Doe", "Ops"));
+                .thenReturn(new PollResult("approved", "jane@edge.ae", "Jane Doe", "Ops", null));
         User existing = User.builder().id(UUID.randomUUID()).email("jane@edge.ae").displayName("Jane Doe").build();
         when(userRepository.findByEmail("jane@edge.ae")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -142,7 +142,7 @@ class X4AuthControllerTest {
     void complete_approvedUnknownUser_autoProvisionsAsEmployee() throws Exception {
         when(x4AuthService.isConfigured()).thenReturn(true);
         when(x4AuthService.consumeApproved("txn-new"))
-                .thenReturn(new PollResult("approved", "newhire@edge.ae", "New Hire", "Field"));
+                .thenReturn(new PollResult("approved", "newhire@edge.ae", "New Hire", "Field", null));
         when(userRepository.findByEmail("newhire@edge.ae")).thenReturn(Optional.empty());
         when(roleRepository.findByName("EMPLOYEE")).thenReturn(Optional.of(mock(Role.class)));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {

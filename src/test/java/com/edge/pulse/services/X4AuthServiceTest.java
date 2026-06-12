@@ -161,6 +161,39 @@ class X4AuthServiceTest {
         server.verify();
     }
 
+    @Test
+    void pollExtractsEmployeeIdClaim() throws Exception {
+        KeyPair kp = Jwts.SIG.RS256.keyPair().build();
+        String kid = "test-kid-empid";
+        String idToken = Jwts.builder()
+                .header().keyId(kid).and()
+                .issuer(BASE)
+                .audience().add(CLIENT_ID).and()
+                .claim("email", "jane@edge.ae")
+                .claim("name", "Jane Doe")
+                .claim("x4auth:department", "Ops")
+                .claim("x4auth:employeeId", "135727")
+                .signWith(kp.getPrivate(), Jwts.SIG.RS256)
+                .compact();
+
+        RSAPublicKey pub = (RSAPublicKey) kp.getPublic();
+        String n = b64url(toUnsigned(pub.getModulus().toByteArray()));
+        String e = b64url(toUnsigned(pub.getPublicExponent().toByteArray()));
+        String jwksJson = "{\"keys\":[{\"kty\":\"RSA\",\"use\":\"sig\",\"alg\":\"RS256\",\"kid\":\""
+                + kid + "\",\"n\":\"" + n + "\",\"e\":\"" + e + "\"}]}";
+
+        server.expect(requestTo(BASE + "/oauth/token"))
+                .andRespond(withSuccess("{\"id_token\":\"" + idToken + "\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/.well-known/jwks.json"))
+                .andRespond(withSuccess(jwksJson, MediaType.APPLICATION_JSON));
+
+        X4AuthService.PollResult result = service.poll("PI-002");
+
+        assertThat(result.approved()).isTrue();
+        assertThat(result.employeeId()).isEqualTo("135727");
+        server.verify();
+    }
+
     private static String b64url(byte[] b) {
         return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b);
     }

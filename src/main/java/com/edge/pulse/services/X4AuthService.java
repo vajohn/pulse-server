@@ -51,7 +51,7 @@ public class X4AuthService {
     }
 
     /** Outcome of a poll. status ∈ {pending, approved, denied, expired}. */
-    public record PollResult(String status, String email, String displayName, String department) {
+    public record PollResult(String status, String email, String displayName, String department, String employeeId) {
         public boolean approved() { return "approved".equals(status); }
     }
 
@@ -131,7 +131,7 @@ public class X4AuthService {
     /** Polls the transaction; verifies the id_token on approval. */
     public PollResult poll(String transactionId) {
         if (!isConfigured()) {
-            return new PollResult("expired", null, null, null);
+            return new PollResult("expired", null, null, null, null);
         }
         String nonce = redis.opsForValue().get(NONCE_PREFIX + transactionId);
         Map<String, Object> body = new HashMap<>();
@@ -143,20 +143,21 @@ public class X4AuthService {
             body.put("poll_nonce", nonce);
         }
 
-        final PollResult[] out = {new PollResult("pending", null, null, null)};
+        final PollResult[] out = {new PollResult("pending", null, null, null, null)};
         try {
             client.post().uri("/oauth/token").body(body).exchange((req, res) -> {
                 HttpStatusCode sc = res.getStatusCode();
                 String raw = res.bodyTo(String.class);
                 JsonNode json = (raw == null || raw.isBlank()) ? null : objectMapper.readTree(raw);
                 if (sc.value() == 202) {
-                    out[0] = new PollResult("pending", null, null, null);
+                    out[0] = new PollResult("pending", null, null, null, null);
                 } else if (sc.is2xxSuccessful() && json != null && json.hasNonNull("id_token")) {
                     Claims c = verifyIdToken(json.get("id_token").asText());
                     PollResult approved = new PollResult("approved",
                             c.get("email", String.class),
                             c.get("name", String.class),
-                            c.get("x4auth:department", String.class));
+                            c.get("x4auth:department", String.class),
+                            c.get("x4auth:employeeId", String.class));
                     out[0] = approved;
                     // X4Auth returns the id_token ONCE — cache the verified identity so a
                     // subsequent /complete (different request, possibly different pod) can
@@ -166,9 +167,9 @@ public class X4AuthService {
                 } else if (json != null && json.hasNonNull("error")) {
                     String err = json.get("error").asText();
                     if ("access_denied".equals(err)) {
-                        out[0] = new PollResult("denied", null, null, null);
+                        out[0] = new PollResult("denied", null, null, null, null);
                     } else if ("expired_token".equals(err)) {
-                        out[0] = new PollResult("expired", null, null, null);
+                        out[0] = new PollResult("expired", null, null, null, null);
                     }
                 }
                 return null;
