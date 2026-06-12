@@ -1,5 +1,6 @@
 package com.edge.pulse.controllers;
 
+import com.edge.pulse.configs.X4AuthProperties;
 import com.edge.pulse.data.dto.UserSummary;
 import com.edge.pulse.data.models.Role;
 import com.edge.pulse.data.models.User;
@@ -54,6 +55,7 @@ class X4AuthControllerTest {
     @Mock private JwtTokenService jwtTokenService;
     @Mock private PermissionCacheService permissionCacheService;
     @Mock private AuditService auditService;
+    @Mock private X4AuthProperties x4AuthProperties;
 
     private static final UserSummary SUMMARY = new UserSummary(
             UUID.randomUUID(), "jane@edge.ae", "Jane Doe", "Ops",
@@ -63,7 +65,7 @@ class X4AuthControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new X4AuthController(
                 x4AuthService, userRepository, roleRepository,
-                jwtTokenService, permissionCacheService, auditService)).build();
+                jwtTokenService, permissionCacheService, auditService, x4AuthProperties)).build();
 
         when(jwtTokenService.generateAccessToken(any(User.class))).thenReturn("access-token");
         when(jwtTokenService.generateRefreshToken(any(User.class), any(), any())).thenReturn("refresh-token");
@@ -175,5 +177,67 @@ class X4AuthControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(jwtTokenService, never()).generateAccessToken(any());
+    }
+
+    @Test
+    void strictMode_matchByEmployeeId_returns200AndDoesNotProvision() throws Exception {
+        when(x4AuthProperties.getMatchMode()).thenReturn("EMPLOYEE_NUMBER_STRICT");
+        var approved = new X4AuthService.PollResult("approved", "x-2829@adsb.ae", "Test User", "Falaj", "135727");
+        when(x4AuthService.isConfigured()).thenReturn(true);
+        when(x4AuthService.consumeApproved("txn-1")).thenReturn(approved);
+        User synced = User.builder().id(java.util.UUID.randomUUID()).email("name@adsb.ae")
+                .employeeId("135727").active(true).build();
+        when(userRepository.findByEmployeeId("135727")).thenReturn(java.util.Optional.of(synced));
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(jwtTokenService.generateAccessToken(any())).thenReturn("access");
+        when(jwtTokenService.generateRefreshToken(any(), any(), any())).thenReturn("refresh");
+        when(permissionCacheService.toUserSummary(any())).thenReturn(null);
+
+        mockMvc.perform(post("/api/auth/x4auth/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"transactionId\":\"txn-1\"}"))
+                .andExpect(status().isOk());
+
+        verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    void strictMode_noEmployeeMatch_returns403() throws Exception {
+        when(x4AuthProperties.getMatchMode()).thenReturn("EMPLOYEE_NUMBER_STRICT");
+        var approved = new X4AuthService.PollResult("approved", "ghost@adsb.ae", "Ghost", null, "999999");
+        when(x4AuthService.isConfigured()).thenReturn(true);
+        when(x4AuthService.consumeApproved("txn-2")).thenReturn(approved);
+        when(userRepository.findByEmployeeId("999999")).thenReturn(java.util.Optional.empty());
+        when(userRepository.findBySfUserId("999999")).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(post("/api/auth/x4auth/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"transactionId\":\"txn-2\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("NO_EMPLOYEE_RECORD"));
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void emailMode_unchanged_autoProvisionsWhenAbsent() throws Exception {
+        when(x4AuthProperties.getMatchMode()).thenReturn("EMAIL");
+        var approved = new X4AuthService.PollResult("approved", "new@adsb.ae", "New", "Dept", null);
+        when(x4AuthService.isConfigured()).thenReturn(true);
+        when(x4AuthService.consumeApproved("txn-3")).thenReturn(approved);
+        when(userRepository.findByEmail("new@adsb.ae")).thenReturn(java.util.Optional.empty());
+        when(roleRepository.findByName("EMPLOYEE"))
+                .thenReturn(java.util.Optional.of(Role.builder().id(java.util.UUID.randomUUID()).name("EMPLOYEE").build()));
+        when(userRepository.save(any(User.class))).thenAnswer(i -> { User u = i.getArgument(0); u.setId(java.util.UUID.randomUUID()); return u; });
+        when(jwtTokenService.generateAccessToken(any())).thenReturn("access");
+        when(jwtTokenService.generateRefreshToken(any(), any(), any())).thenReturn("refresh");
+        when(permissionCacheService.toUserSummary(any())).thenReturn(null);
+
+        mockMvc.perform(post("/api/auth/x4auth/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"transactionId\":\"txn-3\"}"))
+                .andExpect(status().isOk());
+
+        verify(userRepository).save(any(User.class));
     }
 }

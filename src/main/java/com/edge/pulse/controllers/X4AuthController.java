@@ -35,9 +35,16 @@ import java.util.Set;
  * the existing login endpoints. The client→server contract mirrors the proven x4mahara integration:
  * {@code config → initiate → status/{txn} → complete}.
  *
- * <p>Per the air-gap design decision, an approved login with no matching Pulse user is
- * <b>auto-provisioned</b> as {@code EMPLOYEE}; RBAC remains Pulse-authoritative ({@code x4auth:roles}
- * are logged, not applied). Existing users are matched by email.
+ * <p>User resolution on {@code /complete} is governed by {@link com.edge.pulse.configs.X4AuthProperties#getMatchMode()}:
+ * <ul>
+ *   <li><b>EMPLOYEE_NUMBER_STRICT</b> — matches the {@code x4auth:employeeId} claim against a
+ *       saf-synced Pulse employee ({@code findByEmployeeId} then {@code findBySfUserId} fallback);
+ *       rejects the login with 403 if no match. No bare auto-provisioning in this mode.</li>
+ *   <li><b>EMAIL</b> (default, transitional) — matches by email and auto-provisions a bare
+ *       {@code EMPLOYEE} if absent; deployed until X4Auth reliably emits the employeeId claim,
+ *       then k2 gitops flips matchMode to STRICT.</li>
+ * </ul>
+ * RBAC remains Pulse-authoritative in both modes ({@code x4auth:roles} are logged, not applied).
  */
 @RestController
 @RequestMapping("/api/auth/x4auth")
@@ -53,6 +60,7 @@ public class X4AuthController {
     private final JwtTokenService jwtTokenService;
     private final PermissionCacheService permissionCacheService;
     private final AuditService auditService;
+    private final com.edge.pulse.configs.X4AuthProperties x4AuthProperties;
 
     public record InitiateRequest(@NotBlank @Email String email) {}
     public record CompleteRequest(@NotBlank String transactionId) {}
@@ -100,9 +108,31 @@ public class X4AuthController {
         }
 
         String email = approved.email().trim().toLowerCase();
-        User user = userRepository.findByEmail(email)
-                .map(existing -> touchLogin(existing))
-                .orElseGet(() -> autoProvision(email, approved, http.getRemoteAddr()));
+        User user;
+        if ("EMPLOYEE_NUMBER_STRICT".equalsIgnoreCase(x4AuthProperties.getMatchMode())) {
+            String employeeId = approved.employeeId();
+            if (employeeId == null || employeeId.isBlank()) {
+                log.warn("X4Auth STRICT login rejected: no employeeId claim for {}", email);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "NO_EMPLOYEE_RECORD",
+                                "message", "No employee record found for this account — contact IT."));
+            }
+            User matched = userRepository.findByEmployeeId(employeeId)
+                    .or(() -> userRepository.findBySfUserId(employeeId))
+                    .orElse(null);
+            if (matched == null) {
+                log.warn("X4Auth STRICT login rejected: no saf employee for employeeId={}", employeeId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "NO_EMPLOYEE_RECORD",
+                                "message", "No employee record found for this account — contact IT."));
+            }
+            user = touchLogin(matched);
+        } else {
+            // Legacy EMAIL mode (transitional, until X4Auth emits x4auth:employeeId).
+            user = userRepository.findByEmail(email)
+                    .map(this::touchLogin)
+                    .orElseGet(() -> autoProvision(email, approved, http.getRemoteAddr()));
+        }
 
         String accessToken = jwtTokenService.generateAccessToken(user);
         String refreshToken = jwtTokenService.generateRefreshToken(
