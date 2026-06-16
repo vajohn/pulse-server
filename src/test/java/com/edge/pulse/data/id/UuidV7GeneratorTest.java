@@ -31,4 +31,14 @@ class UuidV7GeneratorTest {
         UUID b = UuidV7Generator.generateV7();
         assertNotEquals(a, b);
     }
+
+    @Test
+    void embeddedTimestampMatchesWallClock() {
+        long before = System.currentTimeMillis();
+        UUID u = UuidV7Generator.generateV7();
+        long after = System.currentTimeMillis();
+        long embedded = u.getMostSignificantBits() >>> 16; // top 48 bits = unix ms
+        assertTrue(embedded >= before - 1 && embedded <= after + 1,
+                "embedded timestamp " + embedded + " must fall within [" + before + ", " + after + "]");
+    }
 }
