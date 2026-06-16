@@ -4,7 +4,7 @@ import com.edge.pulse.data.enums.NominationStatus;
 import com.edge.pulse.data.models.User;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.UuidGenerator;
+import com.edge.pulse.data.id.UuidV7;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.UUID;
 public class Nomination {
 
     @Id
-    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @UuidV7
     @EqualsAndHashCode.Include
     private UUID id;
 
