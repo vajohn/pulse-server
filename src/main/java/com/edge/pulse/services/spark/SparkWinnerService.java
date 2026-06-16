@@ -72,7 +72,9 @@ public class SparkWinnerService {
                 });
 
         SparkWinner saved = winnerRepository.save(sparkWinner);
-        return sparkMapper.toDto(saved, 0);
+        long nominationCount = nominationRepository.countByPeriodAndNomineeAndCategory(
+                request.awardPeriodId(), request.winnerId(), request.categoryId());
+        return sparkMapper.toDto(saved, 0, nominationCount);
     }
 
     public void announceWinners(UUID periodId) {
@@ -106,7 +108,11 @@ public class SparkWinnerService {
         }
 
         return winners.stream()
-                .map(w -> sparkMapper.toDto(w, countByWinner.getOrDefault(w.getId(), 0L).intValue()))
+                .map(w -> sparkMapper.toDto(
+                        w,
+                        countByWinner.getOrDefault(w.getId(), 0L).intValue(),
+                        nominationRepository.countByPeriodAndNomineeAndCategory(
+                                periodId, w.getWinner().getId(), w.getCategory().getId())))
                 .toList();
     }
 

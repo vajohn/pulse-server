@@ -97,7 +97,7 @@ public class SparkMapper {
         );
     }
 
-    public SparkWinnerDto toDto(SparkWinner entity, long congratulationCount) {
+    public SparkWinnerDto toDto(SparkWinner entity, long congratulationCount, long nominationCount) {
         return new SparkWinnerDto(
                 entity.getId(),
                 entity.getAwardPeriod().getId(),
@@ -105,6 +105,7 @@ public class SparkMapper {
                 toDto(entity.getCategory()),
                 toNomineeInfo(entity.getWinner()),
                 entity.getVoteCount(),
+                (int) nominationCount,
                 entity.getAnnouncedAt(),
                 entity.getAwardPoints(),
                 congratulationCount

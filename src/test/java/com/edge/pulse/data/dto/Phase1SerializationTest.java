@@ -99,6 +99,7 @@ class Phase1SerializationTest {
                 new SparkCategoryDto("cat-1", "Innovation", "Innovative spirit", "star", 1, true),
                 new NomineeInfoDto(UUID.randomUUID(), "Alice Smith", "alice@example.com", "Engineer", "Backend"),
                 42,
+                0,
                 LocalDateTime.now(),
                 new BigDecimal("500.00"),
                 10L);
@@ -117,7 +118,7 @@ class Phase1SerializationTest {
                 UUID.randomUUID(), UUID.randomUUID(), "Q1",
                 new SparkCategoryDto("cat-2", "Cat", "Desc", "icon", 2, true),
                 new NomineeInfoDto(UUID.randomUUID(), "Bob", "b@e.com", "Manager", "Ops"),
-                1, LocalDateTime.now(),
+                1, 0, LocalDateTime.now(),
                 new BigDecimal("1234.56"),
                 0L);
 

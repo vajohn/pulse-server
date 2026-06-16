@@ -14,6 +14,7 @@ public record SparkWinnerDto(
         SparkCategoryDto category,
         NomineeInfoDto winner,
         int voteCount,
+        int nominationCount,
         LocalDateTime announcedAt,
         @JsonSerialize(using = ToStringSerializer.class) BigDecimal awardPoints,
         long congratulationCount

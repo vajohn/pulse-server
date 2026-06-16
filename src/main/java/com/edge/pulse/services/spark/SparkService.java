@@ -47,7 +47,9 @@ public class SparkService {
 
         List<SparkWinnerDto> recentWinners = current != null
                 ? winnerRepository.findByAwardPeriodIdAndAnnouncedAtIsNotNull(current.getId())
-                        .stream().map(w -> sparkMapper.toDto(w, 0)).toList()
+                        .stream().map(w -> sparkMapper.toDto(w, 0,
+                                nominationRepository.countByPeriodAndNomineeAndCategory(
+                                        current.getId(), w.getWinner().getId(), w.getCategory().getId()))).toList()
                 : Collections.emptyList();
 
         int pendingVotes = 0;
