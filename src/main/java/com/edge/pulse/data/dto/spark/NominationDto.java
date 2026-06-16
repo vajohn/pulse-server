@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record NominationDto(
         UUID id,
+        String referenceNumber,
         UUID awardPeriodId,
         String awardPeriodName,
         SparkCategoryDto category,

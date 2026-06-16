@@ -72,6 +72,7 @@ public class SparkMapper {
                 : Collections.emptyList();
         return new NominationDto(
                 entity.getId(),
+                SparkReference.format(entity.getId()),
                 entity.getAwardPeriod().getId(),
                 entity.getAwardPeriod().getName(),
                 toDto(entity.getCategory()),
