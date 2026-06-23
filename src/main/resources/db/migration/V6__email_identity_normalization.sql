@@ -165,8 +165,10 @@ BEGIN
                             AND c.category_id = d.category_id);
             UPDATE leader_votes SET leader_id = canonical_id WHERE leader_id = dup_id;
 
-            -- spark_congratulations: uq_one_congrats_per_user_winner UNIQUE (winner_id, user_id).
-            -- Both columns reference users(id); repoint each, deleting collisions first.
+            -- spark_congratulations.user_id -> users(id) (uq_one_congrats_per_user_winner
+            -- UNIQUE (winner_id, user_id)). NOTE: winner_id -> spark_winners(id), NOT users — the
+            -- winner_id repoint below is a defensive no-op (matches no user id), kept for symmetry;
+            -- the real user FK is spark_winners.winner_id, repointed in the plain-FK section.
             DELETE FROM spark_congratulations d
             WHERE d.user_id = dup_id
               AND EXISTS (SELECT 1 FROM spark_congratulations c

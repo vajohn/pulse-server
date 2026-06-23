@@ -84,7 +84,10 @@ public class X4AuthController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "X4AUTH_NOT_CONFIGURED"));
         }
-        InitiateResult r = x4AuthService.initiate(EmailNormalizer.normalizeEmail(request.email()));
+        // Do NOT impose Pulse's lowercasing on the X4Auth push lookup — X4Auth owns account
+        // matching and its store may be case-sensitive. Pulse normalizes only its OWN persistence
+        // and lookup, at complete() time. Forward the email as received. (PULSE-8 review.)
+        InitiateResult r = x4AuthService.initiate(request.email());
         if (!r.success()) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", r.errorCode(),

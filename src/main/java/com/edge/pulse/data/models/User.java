@@ -26,7 +26,10 @@ public class User {
     @Column(name = "azure_ad_id", unique = true)
     private String azureAdId;
 
-    @Column(unique = true, nullable = false)
+    // Uniqueness is enforced CASE-INSENSITIVELY by the functional index users_email_lower_key
+    // (migration V6) — not a plain unique constraint. Do NOT add unique=true here, or ddl-auto
+    // would recreate the case-sensitive users_email_key that V6 removed. (PULSE-8.)
+    @Column(nullable = false)
     private String email;
 
     private String displayName;

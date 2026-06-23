@@ -149,11 +149,12 @@ public class UserProvisioningService {
     }
 
     @Transactional
-    public User provisionOrUpdateUser(String azureAdId, String email, String displayName, String titleName,
+    public User provisionOrUpdateUser(String azureAdId, String rawEmail, String displayName, String titleName,
                                       Set<String> roleNames, Set<String> permissionNames,
                                       Set<String> teamNames, Set<String> groupNames,
                                       String department, String employeeId, String managerAzureAdId) {
-        User user = provisionOrUpdateUser(azureAdId, email, displayName, titleName,
+        // rawEmail is normalized by the delegated overload below (single source of truth).
+        User user = provisionOrUpdateUser(azureAdId, rawEmail, displayName, titleName,
                 roleNames, permissionNames, teamNames, groupNames);
 
         boolean changed = false;
