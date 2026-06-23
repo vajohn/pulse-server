@@ -3,5 +3,11 @@
 FROM 172.26.34.205:5000/infra/eclipse-temurin:25-jre-alpine
 WORKDIR /app
 COPY build/libs/pulse-*.jar app.jar
+# OpenTelemetry Java agent (traces + metrics → SigNoz). Baked in but OPT-IN:
+# it only activates when the deployment sets JAVA_TOOL_OPTIONS=-javaagent:/app/otel-javaagent.jar
+# plus OTEL_* env. Without that env the agent is dormant (image stays generic).
+# Air-gap: the jar is fetched on the Mac and shipped in the build context (cannot
+# download on the registry host). See ai/tickets/PULSE-7.
+COPY otel/opentelemetry-javaagent.jar /app/otel-javaagent.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
