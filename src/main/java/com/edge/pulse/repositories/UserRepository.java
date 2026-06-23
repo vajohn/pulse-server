@@ -23,6 +23,20 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByOrgUnitPathStartingWithAndActiveTrue(String prefix);
     long countByOrgUnitIdAndActiveTrue(UUID orgUnitId);
 
+    /**
+     * C-2: Boundary-safe active-user count for an org-unit subtree. Counts users whose
+     * org unit is exactly {@code path} OR a proper descendant ({@code path + '/...'}).
+     *
+     * <p>Replaces {@link #countByOrgUnitPathStartingWithAndActiveTrue(String)} for the
+     * engagement denominator: the naive {@code startsWith} variant would also match a
+     * sibling that merely shares a string prefix (e.g. prefix {@code /EDGE/7001} would
+     * wrongly match {@code /EDGE/70011}), inflating the denominator.
+     */
+    @Query("SELECT COUNT(u) FROM User u " +
+           "WHERE u.active = true " +
+           "AND (u.orgUnit.path = :path OR u.orgUnit.path LIKE CONCAT(:path, '/%'))")
+    long countActiveInSubtree(@org.springframework.data.repository.query.Param("path") String path);
+
     List<User> findByDisplayNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
             String displayName, String email);
 

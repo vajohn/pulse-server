@@ -230,11 +230,20 @@ public class AnalyticsService {
      * @param includeChildren include the node's descendants when true; the node alone when false
      * @param days       engagement window length in days (must be &gt; 0)
      */
+    // TODO(engagement-source): temporary composite of survey RATING + psychometric SCALE;
+    // revisit to split pure-engagement (survey) from psychometric. The engagement score is
+    // currently the normalized-to-1..5 combination of SURVEY RATING/MULTI_RATING answers
+    // (answer_rating) AND SCALE answers (answer_scale, which today include psychometric
+    // Likert items). This is an explicit, TEMPORARY product decision ("do both for now,
+    // revisit later"); when a pure-engagement source is defined, drop the SCALE branch (or
+    // restrict it) here and in the windowed repository queries.
     @Transactional(readOnly = true)
     public EngagementSummaryDto getEngagementSummary(String scopeLevel, UUID nodeId,
                                                      boolean includeChildren, int days,
                                                      UUID requestingUserId) {
-        int periodDays = days > 0 ? days : 30;
+        // I-4: clamp the requested window to a sane ceiling so a caller can't request an
+        // unbounded scan (e.g. days=2_000_000). 30-day default; hard max 730 (~2 years).
+        int periodDays = Math.min(days > 0 ? days : 30, 730);
 
         // Resolve the org node, bounded by the caller's scope.
         OrganizationalUnit node = resolveScopedNode(nodeId, requestingUserId);
@@ -269,37 +278,45 @@ public class AnalyticsService {
         // (pathFilter == null) ignores it. exactOnly = scope to the node alone.
         boolean exactOnly = pathFilter != null && !includeChildren;
 
+        // I-5: single read-only snapshot. `now` is captured once so the current window
+        // [curStart, now) and the immediately-preceding window [prevStart, curStart) are
+        // computed against one consistent instant — no clock drift between the two queries,
+        // and the windows are exactly contiguous and non-overlapping.
         LocalDateTime now      = LocalDateTime.now();
         LocalDateTime curStart = now.minusDays(periodDays);
+        LocalDateTime prevStart = curStart.minusDays(periodDays);
 
-        long respondents = scaleRepo.countScopedRespondents(pathFilter, exactOnly, curStart);
+        // Composite (RATING + SCALE, both normalized to 1..5) over the current window.
+        WindowComposite cur = computeWindow(pathFilter, exactOnly, curStart, now);
 
-        // SERVER-SIDE privacy gate: suppress everything below the threshold.
+        // SERVER-SIDE privacy gate: suppress everything below the threshold (distinct
+        // respondents across BOTH sources). Computed before any aggregate serializes.
+        long respondents = cur.respondentSessionIds.size();
         if (respondents < MIN_RESPONDENTS) {
             return EngagementSummaryDto.masked(
                     normalizeScopeLevel(scopeLevel), resolvedNodeId, resolvedNodeName,
                     includeChildren, periodDays);
         }
 
-        double overall = scaleRepo.findScopedOverallAverage(pathFilter, exactOnly, curStart).orElse(0.0);
+        double overall = cur.overall();
 
-        // Per-form ("category") means. Suppress any form that is individually
-        // below the respondent threshold so a small sub-cohort can't be isolated.
-        List<EngagementSummaryDto.CategoryScore> categoryScores =
-                scaleRepo.findScopedFormAverages(pathFilter, exactOnly, curStart).stream()
-                        .filter(r -> ((Number) r[2]).intValue() >= MIN_RESPONDENTS)
-                        .map(r -> new EngagementSummaryDto.CategoryScore(
-                                (String) r[0],
-                                ((Number) r[1]).doubleValue(),
-                                ((Number) r[2]).intValue()))
-                        .toList();
+        // Per-form ("category") means over the combined normalized data. Suppress any form
+        // whose distinct-respondent sub-cohort is below the threshold so a small group
+        // can't be isolated.
+        List<EngagementSummaryDto.CategoryScore> categoryScores = cur.perForm.entrySet().stream()
+                .filter(e -> e.getValue().respondents() >= MIN_RESPONDENTS)
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> new EngagementSummaryDto.CategoryScore(
+                        e.getKey(),
+                        e.getValue().mean(),
+                        e.getValue().respondents()))
+                .toList();
 
-        List<EngagementSummaryDto.ScoreBucket> distribution =
-                scaleRepo.findScopedScoreDistribution(pathFilter, exactOnly, curStart).stream()
-                        .map(r -> new EngagementSummaryDto.ScoreBucket(
-                                ((Number) r[0]).intValue(),
-                                ((Number) r[1]).longValue()))
-                        .toList();
+        // Normalized 1..5 histogram across the combined data.
+        List<EngagementSummaryDto.ScoreBucket> distribution = cur.distribution.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> new EngagementSummaryDto.ScoreBucket(e.getKey(), e.getValue()))
+                .toList();
 
         // Eligible users = active users in the resolved scope (participation denominator).
         long eligibleUsers;
@@ -308,23 +325,22 @@ public class AnalyticsService {
         } else if (exactOnly && node != null) {
             eligibleUsers = userRepository.countByOrgUnitIdAndActiveTrue(node.getId());
         } else {
-            eligibleUsers = userRepository.countByOrgUnitPathStartingWithAndActiveTrue(pathFilter);
+            // C-2: boundary-safe subtree count (path = prefix OR LIKE prefix/%), NOT a naive
+            // startsWith that would let "/EDGE/7001" match sibling "/EDGE/70011".
+            eligibleUsers = userRepository.countActiveInSubtree(pathFilter);
         }
         double participationRate = eligibleUsers > 0
                 ? (double) respondents / eligibleUsers * 100.0
                 : 0.0;
 
-        // Trend vs the immediately-preceding window of the same length.
-        LocalDateTime prevStart = curStart.minusDays(periodDays);
-        long prevRespondents = scaleRepo.countScopedRespondentsInWindow(
-                pathFilter, exactOnly, prevStart, curStart);
+        // Trend vs the immediately-preceding window of the same length (combined sources).
+        WindowComposite prev = computeWindow(pathFilter, exactOnly, prevStart, curStart);
         EngagementSummaryDto.Trend trend;
-        if (prevRespondents >= MIN_RESPONDENTS) {
-            double prev  = scaleRepo.findScopedOverallAverageInWindow(
-                    pathFilter, exactOnly, prevStart, curStart).orElse(0.0);
-            double delta = overall - prev;
+        if (prev.respondentSessionIds.size() >= MIN_RESPONDENTS) {
+            double prevOverall = prev.overall();
+            double delta = overall - prevOverall;
             String dir = Math.abs(delta) < 1e-9 ? "FLAT" : (delta > 0 ? "UP" : "DOWN");
-            trend = new EngagementSummaryDto.Trend(overall, prev, delta, dir);
+            trend = new EngagementSummaryDto.Trend(overall, prevOverall, delta, dir);
         } else {
             // Not enough prior-period respondents to compare without leaking a tiny cohort.
             trend = new EngagementSummaryDto.Trend(overall, null, null, "NO_PRIOR_DATA");
@@ -334,8 +350,9 @@ public class AnalyticsService {
                 normalizeScopeLevel(scopeLevel),
                 resolvedNodeId, resolvedNodeName, includeChildren, periodDays,
                 false,
-                (int) respondents,
-                (int) eligibleUsers,
+                // I-2: explicit overflow-checked narrowing instead of a silent (int) cast.
+                Math.toIntExact(respondents),
+                Math.toIntExact(eligibleUsers),
                 participationRate,
                 overall,
                 categoryScores,
@@ -344,8 +361,117 @@ public class AnalyticsService {
                 null /* eNPS unsupported by data model — see report */);
     }
 
+    /**
+     * Computes the composite (RATING + SCALE, both normalized to 1..5) engagement
+     * metrics over a single [since, until) window in one bounded set of queries (no N+1):
+     * two SCALE aggregate reads + one SCALE respondent-id read + one per-submission RATING
+     * read. SCALE rows are normalized in SQL; RATING submissions (which may carry multiple
+     * MULTI_RATING subject rows) are collapsed to one averaged value per submission and
+     * normalized here. See the TODO(engagement-source) note above for why both are combined.
+     */
+    private WindowComposite computeWindow(String pathFilter, boolean exactOnly,
+                                          LocalDateTime since, LocalDateTime until) {
+        WindowComposite w = new WindowComposite();
+
+        // ── SCALE source (already normalized to 1..5 in SQL) ──────────────────
+        List<Object[]> scaleSumRows = scaleRepo.sumNormalizedInWindow(pathFilter, exactOnly, since, until);
+        if (!scaleSumRows.isEmpty()) {
+            Object[] scaleSum = scaleSumRows.get(0);
+            w.sum   += ((Number) scaleSum[0]).doubleValue();
+            w.count += ((Number) scaleSum[1]).longValue();
+        }
+
+        for (Object[] r : scaleRepo.findNormalizedFormSumsInWindow(pathFilter, exactOnly, since, until)) {
+            String title = (String) r[0];
+            double sum   = ((Number) r[1]).doubleValue();
+            long cnt     = ((Number) r[2]).longValue();
+            FormAccumulator acc = w.perForm.computeIfAbsent(title, k -> new FormAccumulator());
+            acc.sum += sum;
+            acc.count += cnt;
+        }
+
+        // Per-form distinct respondents (SCALE source). RATING rows below union into the same
+        // per-form session-id set so a session answering both a SCALE and a RATING question on
+        // one form is counted ONCE, not twice.
+        for (Object[] r : scaleRepo.findRespondentFormSessionsInWindow(pathFilter, exactOnly, since, until)) {
+            String title   = (String) r[0];
+            UUID sessionId = (UUID) r[1];
+            w.perForm.computeIfAbsent(title, k -> new FormAccumulator()).respondentSessions.add(sessionId);
+        }
+
+        for (Object[] r : scaleRepo.findNormalizedDistributionInWindow(pathFilter, exactOnly, since, until)) {
+            int bucket = clampBucket(((Number) r[0]).intValue());
+            w.distribution.merge(bucket, ((Number) r[1]).longValue(), Long::sum);
+        }
+
+        for (UUID sid : scaleRepo.findRespondentSessionIdsInWindow(pathFilter, exactOnly, since, until)) {
+            w.respondentSessionIds.add(sid);
+        }
+
+        // ── RATING source (per-submission rows; normalize 1..5 here) ──────────
+        for (Object[] r : ratingRepo.findSubmissionRatingsInWindow(pathFilter, exactOnly, since, until)) {
+            String title   = (String) r[0];
+            UUID sessionId = (UUID) r[1];
+            double avgStars = ((Number) r[2]).doubleValue();
+            int maxStars    = ((Number) r[3]).intValue();
+            // Normalize stars in [1, maxStars] to 1..5. maxStars == 5 → identity.
+            // Guard degenerate maxStars <= 1 (single-star scale carries no signal): skip.
+            if (maxStars <= 1) continue;
+            double norm = 1.0 + 4.0 * (avgStars - 1.0) / (maxStars - 1.0);
+
+            w.sum += norm;
+            w.count += 1;
+
+            FormAccumulator acc = w.perForm.computeIfAbsent(title, k -> new FormAccumulator());
+            acc.sum += norm;
+            acc.count += 1;
+            // Union into the per-form session set → counted once even if this session also
+            // contributed SCALE answers to the same form.
+            acc.respondentSessions.add(sessionId);
+
+            w.distribution.merge(clampBucket((int) Math.round(norm)), 1L, Long::sum);
+            w.respondentSessionIds.add(sessionId);
+        }
+
+        return w;
+    }
+
+    /** Clamps a rounded normalized value into the valid 1..5 bucket range (defensive). */
+    private int clampBucket(int b) {
+        return Math.max(1, Math.min(5, b));
+    }
+
+    /** Per-form running totals over the combined normalized data. */
+    private static final class FormAccumulator {
+        double sum;
+        long count;
+        /** Distinct respondent session ids across BOTH sources for this form (no double-count). */
+        final java.util.Set<UUID> respondentSessions = new java.util.HashSet<>();
+        double mean()        { return count > 0 ? sum / count : 0.0; }
+        int respondents()    { return respondentSessions.size(); }
+    }
+
+    /** Composite metrics for one engagement window across BOTH answer sources. */
+    private static final class WindowComposite {
+        double sum;                                                   // Σ normalized values
+        long count;                                                   // # normalized values
+        final Map<String, FormAccumulator> perForm = new LinkedHashMap<>();
+        final Map<Integer, Long> distribution = new LinkedHashMap<>(); // bucket(1..5) → count
+        final java.util.Set<UUID> respondentSessionIds = new java.util.HashSet<>();
+        double overall() { return count > 0 ? sum / count : 0.0; }
+    }
+
     private String normalizeScopeLevel(String scopeLevel) {
-        return (scopeLevel == null || scopeLevel.isBlank()) ? "GLOBAL" : scopeLevel;
+        // M-3: validate against the OrgLevel enum; reject nonsense by normalizing to GLOBAL
+        // rather than echoing an arbitrary client string back into the contract.
+        if (scopeLevel == null || scopeLevel.isBlank()) return "GLOBAL";
+        String upper = scopeLevel.trim().toUpperCase(java.util.Locale.ROOT);
+        if ("GLOBAL".equals(upper)) return "GLOBAL";
+        try {
+            return com.edge.pulse.data.enums.OrgLevel.valueOf(upper).name();
+        } catch (IllegalArgumentException ex) {
+            return "GLOBAL";
+        }
     }
 
     /**
@@ -353,6 +479,13 @@ public class AnalyticsService {
      * Returns null when no node was requested. Returns null (→ caller falls back
      * to their own-scope path or global) when the requested node is outside the
      * caller's accessible set, so out-of-scope data is never surfaced.
+     *
+     * <p>I-3 (security): SCOPE_ENTITY is NOT a fully-broad scope. An ENTITY-scoped
+     * caller is bounded to org units sharing their company_code (the same set
+     * {@link OrgUnitScopeService#resolveAccessibleOrgUnitIds} returns); a requested
+     * node outside that set is rejected (returns null → caller falls back to their
+     * own subtree) so one entity cannot read another entity's node. Only
+     * SCOPE_ORG_WIDE may resolve an arbitrary node.
      */
     private OrganizationalUnit resolveScopedNode(UUID nodeId, UUID requestingUserId) {
         if (nodeId == null || requestingUserId == null) return null;
@@ -360,14 +493,22 @@ public class AnalyticsService {
         if (node == null) return null;
 
         Collection<String> authorities = extractAuthoritiesFromContext();
-        if (orgUnitScopeService.hasBroadScope(authorities)) {
+
+        // SCOPE_ORG_WIDE: unrestricted — any node is resolvable.
+        if (authorities.contains("SCOPE_ORG_WIDE")) {
             return node;
         }
-        // Narrow scope: only allow nodes inside the caller's own subtree.
-        String ownPrefix = resolvePathPrefix(null, requestingUserId);
-        if (ownPrefix != null && matchesPathScope(node.getPath(), ownPrefix)) {
+
+        // SCOPE_ENTITY (and narrower): bound the requested node to the caller's own
+        // accessible set. This closes the cross-entity leak where SCOPE_ENTITY was
+        // previously treated as fully broad and returned ANY requested node.
+        java.util.Set<UUID> accessible =
+                new java.util.HashSet<>(orgUnitScopeService.resolveAccessibleOrgUnitIds(requestingUserId, authorities));
+        if (accessible.contains(node.getId())) {
             return node;
         }
+
+        // Out-of-scope node → reject (caller will fall back to their own subtree / global).
         return null;
     }
 

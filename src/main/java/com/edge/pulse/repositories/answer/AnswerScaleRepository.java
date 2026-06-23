@@ -264,4 +264,117 @@ public interface AnswerScaleRepository extends JpaRepository<AnswerScale, UUID> 
                                         @Param("exactOnly") boolean exactOnly,
                                         @Param("since") LocalDateTime since,
                                         @Param("until") LocalDateTime until);
+
+    // -----------------------------------------------------------------------
+    // Engagement composite (PULSE-WEB-4 / C-1): NORMALIZED-to-1..5 aggregates.
+    //
+    // SCALE value v in [minValue,maxValue] is normalized to 1..5 as
+    //   1 + 4*(v - minValue)/(maxValue - minValue)
+    // computed in SQL. Rows where maxValue <= minValue are skipped (guards the
+    // divide-by-zero / degenerate-scale case). Aggregation is returned as a
+    // (sumOfNormalized, count) pair so the service can compose it with the
+    // psychometric-free RATING source (AnswerRatingRepository) without N+1.
+    //
+    // I-1 hygiene: these queries use the declared alias `sub.isCurrent` and
+    // `rs` for the session (single join), not `a.submission.isCurrent` (which
+    // would re-walk the association).
+    // -----------------------------------------------------------------------
+
+    /**
+     * Single row [sumNormalized (double), count (long)] of SCALE answers in scope+window.
+     * Returned as a single-element {@code List<Object[]>} (not a bare {@code Object[]}) to
+     * avoid Hibernate's tuple-vs-array unwrapping ambiguity for multi-select aggregates.
+     */
+    @Query("SELECT COALESCE(SUM(1.0 + 4.0 * (a.value - a.minValue) / (a.maxValue - a.minValue)), 0.0), COUNT(a) " +
+           "FROM AnswerScale a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND a.maxValue > a.minValue " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until")
+    List<Object[]> sumNormalizedInWindow(@Param("pathFilter") String pathFilter,
+                                         @Param("exactOnly") boolean exactOnly,
+                                         @Param("since") LocalDateTime since,
+                                         @Param("until") LocalDateTime until);
+
+    /**
+     * Per-form [formTitle, sumNormalized (double), count (long)] of SCALE answers.
+     * (Per-form distinct respondents are derived separately, combined across BOTH answer
+     * sources via {@link #findRespondentFormSessionsInWindow}, to avoid double-counting a
+     * session that answered both a SCALE and a RATING question on the same form.)
+     */
+    @Query("SELECT sub.question.form.title, " +
+           "COALESCE(SUM(1.0 + 4.0 * (a.value - a.minValue) / (a.maxValue - a.minValue)), 0.0), " +
+           "COUNT(a) " +
+           "FROM AnswerScale a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND a.maxValue > a.minValue " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until " +
+           "GROUP BY sub.question.form.id, sub.question.form.title")
+    List<Object[]> findNormalizedFormSumsInWindow(@Param("pathFilter") String pathFilter,
+                                                  @Param("exactOnly") boolean exactOnly,
+                                                  @Param("since") LocalDateTime since,
+                                                  @Param("until") LocalDateTime until);
+
+    /**
+     * Distinct [formTitle, sessionId] pairs (SCALE source) within scope+window. The service
+     * unions these with the RATING source's per-form sessions so the per-form respondent
+     * count is the distinct session count across BOTH sources (no double-count). Bounded:
+     * one row per (form, respondent) — not per answer.
+     */
+    @Query("SELECT DISTINCT sub.question.form.title, rs.id " +
+           "FROM AnswerScale a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND a.maxValue > a.minValue " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until")
+    List<Object[]> findRespondentFormSessionsInWindow(@Param("pathFilter") String pathFilter,
+                                                      @Param("exactOnly") boolean exactOnly,
+                                                      @Param("since") LocalDateTime since,
+                                                      @Param("until") LocalDateTime until);
+
+    /** Normalized 1..5 histogram [bucket (int 1..5), count (long)] of SCALE answers, rounded. */
+    @Query("SELECT CAST(ROUND(1.0 + 4.0 * (a.value - a.minValue) / (a.maxValue - a.minValue)) AS integer), COUNT(a) " +
+           "FROM AnswerScale a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND a.maxValue > a.minValue " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until " +
+           "GROUP BY CAST(ROUND(1.0 + 4.0 * (a.value - a.minValue) / (a.maxValue - a.minValue)) AS integer)")
+    List<Object[]> findNormalizedDistributionInWindow(@Param("pathFilter") String pathFilter,
+                                                       @Param("exactOnly") boolean exactOnly,
+                                                       @Param("since") LocalDateTime since,
+                                                       @Param("until") LocalDateTime until);
+
+    /** Distinct respondents (SCALE source) over scope+window, returned as a Set of session ids for cross-source union. */
+    @Query("SELECT DISTINCT rs.id FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND a.maxValue > a.minValue " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until")
+    List<UUID> findRespondentSessionIdsInWindow(@Param("pathFilter") String pathFilter,
+                                                @Param("exactOnly") boolean exactOnly,
+                                                @Param("since") LocalDateTime since,
+                                                @Param("until") LocalDateTime until);
 }

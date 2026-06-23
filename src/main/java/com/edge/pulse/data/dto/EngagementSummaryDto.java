@@ -24,8 +24,16 @@ import java.util.UUID;
  * <p><b>"Category":</b> the schema has no question-level category dimension, so
  * {@code categoryScores} is grouped by <em>form</em> (each form/survey is treated
  * as a category). See the task report for the data-model note.
+ *
+ * <p><b>TODO(engagement-source) — TEMPORARY composite (PULSE-WEB-4 / C-1):</b> every
+ * score here ({@code overallScore}, {@code categoryScores}, {@code scoreDistribution},
+ * {@code trend}) is the normalized-to-1..5 combination of SURVEY {@code RATING}/
+ * {@code MULTI_RATING} answers AND {@code SCALE} answers. SCALE today still includes
+ * <em>psychometric</em> Likert items. This is an explicit, temporary product decision
+ * ("do both for now, revisit later"); revisit to split pure-engagement (survey) from
+ * psychometric. {@code respondents} is the distinct contributor count across BOTH
+ * sources; {@code participationRate} uses it over the active-user denominator.
  */
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public record EngagementSummaryDto(
 
         // ── scope echo (so the client can confirm what was resolved) ──────────
@@ -50,6 +58,10 @@ public record EngagementSummaryDto(
         // ── eNPS (NOT SUPPORTED by the current data model — always null) ──────
         // The schema has no eNPS-style 0-10 recommendation question/category.
         // Flagged in the task report; populate once a data-model addition exists.
+        // M-1: NON_NULL so a perpetual "enps":null doesn't mislead WEB-5 into
+        // thinking the field is computed-but-zero — it is simply absent until a
+        // data-model addition exists.
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         Double enps
 ) {
 

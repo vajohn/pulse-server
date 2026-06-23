@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -75,4 +76,37 @@ public interface AnswerRatingRepository extends JpaRepository<AnswerRating, UUID
            "GROUP BY a.subjectLabel " +
            "ORDER BY a.subjectLabel ASC")
     List<Object[]> findAverageBySubjectForQuestionAndPath(@Param("qid") UUID questionId, @Param("pathPrefix") String pathPrefix);
+
+    // -----------------------------------------------------------------------
+    // Engagement composite (PULSE-WEB-4 / C-1): per-submission RATING rows for
+    // normalization to 1..5. RATING is sourced from SURVEY forms.
+    //
+    // MULTI_RATING stores one row per subjectLabel within a submission, so we
+    // first collapse to one value per submission (AVG over subjects). maxStars
+    // is constant within a submission, so MAX(a.maxStars) returns it safely.
+    // The service then normalizes each submission to 1..5 as
+    //   1 + 4*(avgStars - 1)/(maxStars - 1)   (identity when maxStars == 5).
+    //
+    // Returns one bounded row per qualifying submission (NOT per answer/subject)
+    // → no N+1; the caller aggregates in-memory and composes with the SCALE
+    // source. I-1 hygiene: single session join via the `rs` alias.
+    // Rows are restricted to SURVEY-type forms (RATING is a survey instrument).
+    // -----------------------------------------------------------------------
+
+    /** Per-submission [formTitle, sessionId (UUID), avgStars (double), maxStars (int)] within scope+window. */
+    @Query("SELECT sub.question.form.title, rs.id, AVG(CAST(a.stars AS double)), MAX(a.maxStars) " +
+           "FROM AnswerRating a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND sub.question.form.formType = com.edge.pulse.data.enums.FormType.SURVEY " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until " +
+           "GROUP BY sub.id, sub.question.form.title, rs.id")
+    List<Object[]> findSubmissionRatingsInWindow(@Param("pathFilter") String pathFilter,
+                                                 @Param("exactOnly") boolean exactOnly,
+                                                 @Param("since") LocalDateTime since,
+                                                 @Param("until") LocalDateTime until);
 }

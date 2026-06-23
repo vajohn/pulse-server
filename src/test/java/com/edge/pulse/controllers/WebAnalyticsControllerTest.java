@@ -65,6 +65,9 @@ class WebAnalyticsControllerTest {
                 .andExpect(jsonPath("$.categoryScores[0].category").value("Pulse Q1"))
                 .andExpect(jsonPath("$.scoreDistribution[0].score").value(4))
                 .andExpect(jsonPath("$.trend.direction").value("UP"))
+                // M-2: enps is @JsonInclude(NON_NULL) and always null today, so the field is
+                // genuinely ABSENT from the JSON (not serialized as "enps":null) — WEB-5 should
+                // treat its absence as "not yet supported", not "computed-but-zero".
                 .andExpect(jsonPath("$.enps").doesNotExist());
 
         verify(analyticsService).getEngagementSummary(isNull(), isNull(), eq(true), eq(30), isNull());
