@@ -316,7 +316,7 @@ class EngagementAnalyticsServiceTest {
     void engagement_global_broadScopeNoNode_usesNullPathAndActiveUserCount() {
         UUID userId = UUID.randomUUID();
         authContext(userId, "SCOPE_ORG_WIDE");
-        when(orgUnitScopeService.hasBroadScope(anyCollection())).thenReturn(true);
+        // No-node fallback now gates on SCOPE_ORG_WIDE directly (not hasBroadScope).
 
         // current window
         when(scaleRepo.sumNormalizedInWindow(isNull(), eq(false), any(), any()))
@@ -393,12 +393,16 @@ class EngagementAnalyticsServiceTest {
         authContext(caller.getId(), "SCOPE_ENTITY");  // entity-scoped, NOT org-wide
 
         when(orgUnitRepository.findById(foreign.getId())).thenReturn(java.util.Optional.of(foreign));
-        // hasBroadScope is true for SCOPE_ENTITY (used only for the no-node global branch),
-        // but resolveScopedNode now bounds SCOPE_ENTITY to the accessible-id set.
-        when(orgUnitScopeService.hasBroadScope(anyCollection())).thenReturn(true);
-        // The caller's accessible org units (company_code set) do NOT include the foreign node.
+        // hasBroadScope is true for SCOPE_ENTITY, but the no-node fallback now gates on
+        // SCOPE_ORG_WIDE only — SCOPE_ENTITY must NOT get the global aggregate.
+        lenient().when(orgUnitScopeService.hasBroadScope(anyCollection())).thenReturn(true);
+        // The caller's accessible org units (company_code set) do NOT include the foreign node,
+        // so resolveScopedNode rejects it → node==null → no-node fallback.
         when(orgUnitScopeService.resolveAccessibleOrgUnitIds(eq(caller.getId()), anyCollection()))
                 .thenReturn(List.of(ownUnit.getId()));
+        // The fallback resolves the caller's OWN subtree path (bypassing resolvePathPrefix's
+        // broad-scope shortcut), so the user must be loadable.
+        when(userRepository.findById(caller.getId())).thenReturn(java.util.Optional.of(caller));
 
         // Foreign node has plenty of (would-be-leaked) data — must NOT be surfaced.
         lenient().when(scaleRepo.sumNormalizedInWindow(eq(foreign.getPath()), anyBoolean(), any(), any()))
@@ -406,21 +410,50 @@ class EngagementAnalyticsServiceTest {
         lenient().when(scaleRepo.findRespondentSessionIdsInWindow(eq(foreign.getPath()), anyBoolean(), any(), any()))
                 .thenReturn(sessionIds(100));
 
-        // SCOPE_ENTITY falls back to GLOBAL (no node) since hasBroadScope==true and node rejected.
-        when(scaleRepo.sumNormalizedInWindow(isNull(), eq(false), any(), any()))
-                .thenReturn(java.util.List.<Object[]>of(new Object[]{0.0, 0L}));
-        when(scaleRepo.findRespondentSessionIdsInWindow(isNull(), eq(false), any(), any()))
-                .thenReturn(List.of());
+        // CRITICAL: the GLOBAL (null-path) data path returns REAL, well-above-threshold data.
+        // BEFORE the fix, SCOPE_ENTITY fell through to this global aggregate (hasBroadScope==true)
+        // and would have leaked the entire org's 60-respondent dataset. The test now PROVES the
+        // fallback does NOT consume this global path.
+        lenient().when(scaleRepo.sumNormalizedInWindow(isNull(), anyBoolean(), any(), any()))
+                .thenReturn(java.util.List.<Object[]>of(new Object[]{240.0, 60L}));  // global mean 4.0
+        lenient().when(scaleRepo.findRespondentSessionIdsInWindow(isNull(), anyBoolean(), any(), any()))
+                .thenReturn(sessionIds(60));
+        lenient().when(userRepository.countByActiveTrue()).thenReturn(500L);
+
+        // The caller's OWN subtree (/EDGE/MY_ENTITY/OPS) is what the fallback MUST bind to.
+        // Give it its own distinct, above-threshold data so we can positively assert the
+        // result reflects ONLY this scope — never the global/foreign aggregate.
+        when(scaleRepo.sumNormalizedInWindow(eq(ownUnit.getPath()), eq(false), any(), any()))
+                .thenReturn(java.util.List.<Object[]>of(new Object[]{17.5, 5L}));  // own mean 3.5
+        when(scaleRepo.findRespondentSessionIdsInWindow(eq(ownUnit.getPath()), eq(false), any(), any()))
+                .thenReturn(sessionIds(5));
+        when(userRepository.countActiveInSubtree(ownUnit.getPath())).thenReturn(20L);
 
         EngagementSummaryDto dto = service.getEngagementSummary("ENTITY", foreign.getId(), true, 30, caller.getId());
 
         // The foreign node is NOT resolved/echoed; no foreign data leaks.
         assertThat(dto.nodeId()).isNull();
         assertThat(dto.nodeName()).isNull();
-        // With the global fallback empty, the result is masked (0 respondents) — definitely
-        // NOT the foreign entity's 100-respondent dataset.
-        assertThat(dto.masked()).isTrue();
-        assertThat(dto.respondents()).isNull();
+
+        // PROOF OF NO LEAK: the scope used is the caller's OWN subtree, NOT the global aggregate.
+        // - respondents = 5 (own subtree), NOT 60 (global) and NOT 100 (foreign).
+        // - overall = 3.5 (own mean), NOT 4.0 (global/foreign mean).
+        // - eligibleUsers = 20 (own countActiveInSubtree), NOT 500 (global countByActiveTrue).
+        assertThat(dto.masked()).isFalse();
+        assertThat(dto.respondents()).isEqualTo(5);
+        assertThat(dto.overallScore()).isCloseTo(3.5, within(1e-9));
+        assertThat(dto.eligibleUsers()).isEqualTo(20);
+
+        // Assert the actual scope passed to the repository: the global (null) path was NEVER
+        // queried for the respondent set, and the foreign path was never queried either.
+        org.mockito.Mockito.verify(scaleRepo, org.mockito.Mockito.never())
+                .findRespondentSessionIdsInWindow(isNull(), anyBoolean(), any(), any());
+        org.mockito.Mockito.verify(scaleRepo, org.mockito.Mockito.never())
+                .findRespondentSessionIdsInWindow(eq(foreign.getPath()), anyBoolean(), any(), any());
+        // The own-subtree path WAS the scope used (called for current + prior windows).
+        org.mockito.Mockito.verify(scaleRepo, org.mockito.Mockito.atLeastOnce())
+                .findRespondentSessionIdsInWindow(eq(ownUnit.getPath()), eq(false),
+                        any(), any());
     }
 
     @Test
@@ -460,7 +493,8 @@ class EngagementAnalyticsServiceTest {
         authContext(caller.getId(), "SCOPE_TEAM");
 
         when(orgUnitRepository.findById(requested.getId())).thenReturn(java.util.Optional.of(requested));
-        when(orgUnitScopeService.hasBroadScope(anyCollection())).thenReturn(false);
+        // hasBroadScope no longer consulted in the no-node fallback (gates on SCOPE_ORG_WIDE).
+        lenient().when(orgUnitScopeService.hasBroadScope(anyCollection())).thenReturn(false);
         // Narrow caller: requested node not in accessible set → rejected.
         when(orgUnitScopeService.resolveAccessibleOrgUnitIds(eq(caller.getId()), anyCollection()))
                 .thenReturn(List.of(ownUnit.getId()));
@@ -492,7 +526,7 @@ class EngagementAnalyticsServiceTest {
     void engagement_nonsenseScopeLevel_normalizedToGlobal() {
         UUID userId = UUID.randomUUID();
         authContext(userId, "SCOPE_ORG_WIDE");
-        when(orgUnitScopeService.hasBroadScope(anyCollection())).thenReturn(true);
+        // No-node fallback now gates on SCOPE_ORG_WIDE directly (not hasBroadScope).
         when(scaleRepo.sumNormalizedInWindow(isNull(), eq(false), any(), any()))
                 .thenReturn(java.util.List.<Object[]>of(new Object[]{0.0, 0L}));
         when(scaleRepo.findRespondentSessionIdsInWindow(isNull(), eq(false), any(), any()))

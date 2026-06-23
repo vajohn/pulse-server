@@ -256,15 +256,27 @@ public class AnalyticsService {
             resolvedNodeId   = node.getId();
             resolvedNodeName = node.getOrgUnitName();
         } else {
-            // No node resolved. Global only when caller has broad scope; otherwise
-            // a narrow-scope caller is pinned to their own subtree (resolvePathPrefix).
+            // No node resolved. SECURITY (entity-scope fail-safe): ONLY SCOPE_ORG_WIDE
+            // gets the unrestricted global aggregate. SCOPE_ENTITY is NOT broad here —
+            // its accessible set is bounded by company_code, so granting it a global
+            // all-entities view would leak foreign-entity data (e.g. when an ENTITY
+            // caller requested a foreign node that resolveScopedNode correctly rejected,
+            // leaving node==null). Bind SCOPE_ENTITY (and every narrower scope) to the
+            // caller's own org-unit subtree via resolvePathPrefix — the same path the
+            // engagement window queries already consume. This never widens scope.
+            // NOTE: hasBroadScope() (true for SCOPE_ENTITY too) is intentionally NOT used
+            // for this gate. See the TODO below — getTeamAnalytics/resolvePathPrefix still
+            // treat SCOPE_ENTITY as global and must be reviewed separately.
             Collection<String> authorities = extractAuthoritiesFromContext();
-            if (orgUnitScopeService.hasBroadScope(authorities)) {
+            if (authorities.contains("SCOPE_ORG_WIDE")) {
                 pathFilter = null;
             } else {
-                String own = resolvePathPrefix(null, requestingUserId);
+                // SCOPE_ENTITY and narrower → bound to the caller's own org-unit subtree.
+                // Resolved directly (NOT via resolvePathPrefix, which treats SCOPE_ENTITY
+                // as broad and would hand back null/global — re-introducing the leak).
+                String own = resolveOwnSubtreePath(requestingUserId);
                 if (own == null) {
-                    // No org unit and no broad scope → nothing visible → masked.
+                    // No org unit and not org-wide → nothing visible → masked.
                     return EngagementSummaryDto.masked(
                             normalizeScopeLevel(scopeLevel), null, null, includeChildren, periodDays);
                 }
@@ -709,6 +721,9 @@ public class AnalyticsService {
         if (user == null) return null;
 
         Collection<String> authorities = extractAuthoritiesFromContext();
+        // TODO(entity-scope): getTeamAnalytics/resolvePathPrefix also treat SCOPE_ENTITY as
+        // global (hasBroadScope + orgUnitId==null → null filter) — review separately for the
+        // same cross-entity exposure fixed in getEngagementSummary's no-node fallback.
         if (orgUnitScopeService.hasBroadScope(authorities)) {
             // SCOPE_ORG_WIDE / SCOPE_ENTITY: optional org unit filter; otherwise no restriction
             if (orgUnitId != null) {
@@ -720,6 +735,19 @@ public class AnalyticsService {
 
         // SCOPE_TEAM or no scope: restrict to user's own org unit subtree
         if (user.getOrgUnit() == null) return null;
+        return buildPathPrefix(user.getOrgUnit());
+    }
+
+    /**
+     * Returns the caller's own org-unit subtree path prefix, ignoring any SCOPE_* breadth.
+     * Used by the engagement no-node fallback to fail safe: a SCOPE_ENTITY (or narrower)
+     * caller with no resolvable node is bounded to their OWN subtree rather than the global
+     * all-entities aggregate. Returns null when the caller has no org unit (nothing visible).
+     */
+    private String resolveOwnSubtreePath(UUID requestingUserId) {
+        if (requestingUserId == null) return null;
+        User user = userRepository.findById(requestingUserId).orElse(null);
+        if (user == null || user.getOrgUnit() == null) return null;
         return buildPathPrefix(user.getOrgUnit());
     }
 
