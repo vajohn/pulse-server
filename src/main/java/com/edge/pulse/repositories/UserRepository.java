@@ -15,7 +15,16 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByAzureAdId(String azureAdId);
-    Optional<User> findByEmail(String email);
+
+    /**
+     * Case-insensitive lookup by email (PULSE-8). All email identity lookups MUST go through this
+     * (or {@link #findWithRolesByEmailIgnoreCase(String)}) so a different-cased email reuses the
+     * single canonical user instead of creating an orphan. Callers should still pass an email
+     * already run through {@link com.edge.pulse.util.EmailNormalizer#normalizeEmail(String)}.
+     */
+    @Query("SELECT u FROM User u WHERE lower(u.email) = lower(:email)")
+    Optional<User> findByEmailIgnoreCase(@org.springframework.data.repository.query.Param("email") String email);
+
     List<User> findByOrgUnitId(UUID orgUnitId);
     long countByActiveTrue();
 
@@ -56,7 +65,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     /** Batch lookup by SF user IDs — used to scope profile pre-load to the current sync batch. */
     List<User> findAllBySfUserIdIn(Collection<String> sfUserIds);
 
-    /** Eager-loads roles to avoid LazyInitializationException during role reconciliation. */
+    /**
+     * Case-insensitive, roles-eager lookup (PULSE-8) — used by saf-recon sync so a SF-cased email
+     * matches the existing (possibly login-created) row instead of inserting a duplicate. Eager
+     * roles avoid LazyInitializationException during role reconciliation.
+     */
     @EntityGraph(attributePaths = "roles")
-    Optional<User> findWithRolesByEmail(String email);
+    @Query("SELECT u FROM User u WHERE lower(u.email) = lower(:email)")
+    Optional<User> findWithRolesByEmailIgnoreCase(@org.springframework.data.repository.query.Param("email") String email);
 }

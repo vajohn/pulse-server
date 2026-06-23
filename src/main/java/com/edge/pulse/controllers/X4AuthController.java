@@ -12,6 +12,7 @@ import com.edge.pulse.configs.X4AuthProperties;
 import com.edge.pulse.services.X4AuthService;
 import com.edge.pulse.services.X4AuthService.InitiateResult;
 import com.edge.pulse.services.X4AuthService.PollResult;
+import com.edge.pulse.util.EmailNormalizer;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -83,7 +84,7 @@ public class X4AuthController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "X4AUTH_NOT_CONFIGURED"));
         }
-        InitiateResult r = x4AuthService.initiate(request.email().trim().toLowerCase());
+        InitiateResult r = x4AuthService.initiate(EmailNormalizer.normalizeEmail(request.email()));
         if (!r.success()) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", r.errorCode(),
@@ -114,7 +115,7 @@ public class X4AuthController {
                     .body(Map.of("error", "NOT_APPROVED"));
         }
 
-        String email = approved.email().trim().toLowerCase();
+        String email = EmailNormalizer.normalizeEmail(approved.email());
         User user;
         if ("EMPLOYEE_NUMBER_STRICT".equalsIgnoreCase(x4AuthProperties.getMatchMode())) {
             String employeeId = approved.employeeId();
@@ -136,7 +137,8 @@ public class X4AuthController {
             user = touchLogin(matched);
         } else {
             // Legacy EMAIL mode (transitional, until X4Auth emits x4auth:employeeId).
-            user = userRepository.findByEmail(email)
+            // PULSE-8: case-insensitive match so a SF-cased synced row is reused (no orphan).
+            user = userRepository.findByEmailIgnoreCase(email)
                     .map(this::touchLogin)
                     .orElseGet(() -> autoProvision(email, approved, http.getRemoteAddr()));
         }

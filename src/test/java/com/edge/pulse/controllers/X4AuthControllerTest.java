@@ -127,7 +127,7 @@ class X4AuthControllerTest {
         when(x4AuthService.consumeApproved("txn-123"))
                 .thenReturn(new PollResult("approved", "jane@edge.ae", "Jane Doe", "Ops", null));
         User existing = User.builder().id(UUID.randomUUID()).email("jane@edge.ae").displayName("Jane Doe").build();
-        when(userRepository.findByEmail("jane@edge.ae")).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmailIgnoreCase("jane@edge.ae")).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         mockMvc.perform(post("/api/auth/x4auth/complete")
@@ -146,7 +146,7 @@ class X4AuthControllerTest {
         when(x4AuthService.isConfigured()).thenReturn(true);
         when(x4AuthService.consumeApproved("txn-new"))
                 .thenReturn(new PollResult("approved", "newhire@edge.ae", "New Hire", "Field", null));
-        when(userRepository.findByEmail("newhire@edge.ae")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("newhire@edge.ae")).thenReturn(Optional.empty());
         when(roleRepository.findByName("EMPLOYEE")).thenReturn(Optional.of(mock(Role.class)));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
             User u = inv.getArgument(0);
@@ -165,6 +165,34 @@ class X4AuthControllerTest {
         verify(userRepository).save(any(User.class));
         verify(auditService).logAction(any(UUID.class), eq("USER_AUTOPROVISION_X4AUTH"),
                 eq("user"), any(UUID.class), anyString(), any());
+    }
+
+    @Test
+    void complete_emailMode_differentCase_reusesExistingUserNoOrphan() throws Exception {
+        // PULSE-8: X4Auth returns the SF-cased email; the synced canonical row is stored lowercase.
+        // The login MUST normalise + case-insensitively match it and reuse it — never create an orphan.
+        when(x4AuthProperties.getMatchMode()).thenReturn("EMAIL");
+        when(x4AuthService.isConfigured()).thenReturn(true);
+        when(x4AuthService.consumeApproved("txn-case"))
+                .thenReturn(new PollResult("approved", "X-2340@ADSB.ae", "Cased Name", "Ops", null));
+        UUID canonicalId = UUID.randomUUID();
+        User canonical = User.builder().id(canonicalId).email("x-2340@adsb.ae")
+                .displayName("Synced Name").sfUserId("2340").build();
+        // Controller normalises to lower-case before lookup.
+        when(userRepository.findByEmailIgnoreCase("x-2340@adsb.ae")).thenReturn(Optional.of(canonical));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        mockMvc.perform(post("/api/auth/x4auth/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"transactionId\":\"txn-case\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("access-token"));
+
+        // No new identity provisioned — the existing canonical row is reused (touchLogin only).
+        verify(roleRepository, never()).findByName(anyString());
+        verify(auditService, never()).logAction(any(UUID.class), eq("USER_AUTOPROVISION_X4AUTH"),
+                any(), any(), anyString(), any());
+        verify(jwtTokenService).generateAccessToken(canonical);
     }
 
     @Test
@@ -199,7 +227,7 @@ class X4AuthControllerTest {
                         .content("{\"transactionId\":\"txn-1\"}"))
                 .andExpect(status().isOk());
 
-        verify(userRepository, never()).findByEmail(anyString());
+        verify(userRepository, never()).findByEmailIgnoreCase(anyString());
     }
 
     @Test
@@ -226,7 +254,7 @@ class X4AuthControllerTest {
         var approved = new X4AuthService.PollResult("approved", "new@adsb.ae", "New", "Dept", null);
         when(x4AuthService.isConfigured()).thenReturn(true);
         when(x4AuthService.consumeApproved("txn-3")).thenReturn(approved);
-        when(userRepository.findByEmail("new@adsb.ae")).thenReturn(java.util.Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("new@adsb.ae")).thenReturn(java.util.Optional.empty());
         when(roleRepository.findByName("EMPLOYEE"))
                 .thenReturn(java.util.Optional.of(Role.builder().id(java.util.UUID.randomUUID()).name("EMPLOYEE").build()));
         when(userRepository.save(any(User.class))).thenAnswer(i -> { User u = i.getArgument(0); u.setId(java.util.UUID.randomUUID()); return u; });

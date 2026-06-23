@@ -61,7 +61,7 @@ class SafReconDirectorySyncServiceTest {
         when(titleRepo.save(any())).thenAnswer(i -> i.getArgument(0));
         when(roleRepo.findByName("EMPLOYEE")).thenReturn(Optional.of(role("EMPLOYEE")));
         when(roleRepo.findByName("MANAGER")).thenReturn(Optional.of(role("MANAGER")));
-        when(userRepo.findWithRolesByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepo.findWithRolesByEmailIgnoreCase(anyString())).thenReturn(Optional.empty());
         when(userRepo.save(any(User.class))).thenAnswer(i -> {
             User u = i.getArgument(0);
             if (u.getId() == null) u.setId(UUID.randomUUID());
@@ -105,6 +105,33 @@ class SafReconDirectorySyncServiceTest {
                 .anyMatch(u -> "sara.noor@edge.ae".equals(u.getEmail()) && u.getManager() != null
                         && "mona.ali@edge.ae".equals(u.getManager().getEmail()));
         assertThat(linked).isTrue();
+    }
+
+    @Test
+    void fullSync_normalisesMixedCaseEmailOnCreate() {
+        // PULSE-8: saf-recon delivers the SF-cased work email; the synced User row MUST be stored
+        // lower-cased so a later X4Auth login (which normalises + case-insensitively matches) reuses
+        // it instead of forking a second, orphaned identity.
+        props.setDeactivateFloor(10); // disable deactivation noise
+        when(client.fetchOrgUnits()).thenReturn(List.of());
+        SafReconEmployee cased = new SafReconEmployee(UUID.randomUUID(), "2340", "Cased", "User", "Cased User",
+                "X-2340@ADSB.ae", "ACTIVE", "FULL_TIME", null, null, null, null, null, null, null);
+        when(client.fetchEmployeesPage(eq(0), anyInt()))
+                .thenReturn(new SafReconEmployeePage(List.of(cased), 1));
+
+        DirectorySyncResultDto result = svc.fullSync();
+
+        assertThat(result.usersProcessed()).isEqualTo(1);
+        // Lookup must use the normalised (lower-cased) email, not the raw SF casing.
+        verify(userRepo).findWithRolesByEmailIgnoreCase("x-2340@adsb.ae");
+        // The persisted row carries the canonical lower-cased email.
+        ArgumentCaptor<User> cap = ArgumentCaptor.forClass(User.class);
+        verify(userRepo, atLeastOnce()).save(cap.capture());
+        boolean lowercased = cap.getAllValues().stream()
+                .anyMatch(u -> "x-2340@adsb.ae".equals(u.getEmail()));
+        assertThat(lowercased).isTrue();
+        // Never persisted with the original mixed casing.
+        verify(userRepo, never()).save(argThat(u -> "X-2340@ADSB.ae".equals(u.getEmail())));
     }
 
     @Test
@@ -176,7 +203,7 @@ class SafReconDirectorySyncServiceTest {
         bossUser.setEmail("boss@edge.ae");
         bossUser.setActive(true);
         bossUser.setRoles(new HashSet<>(Set.of(role("EMPLOYEE"))));
-        when(userRepo.findWithRolesByEmail("boss@edge.ae")).thenReturn(Optional.of(bossUser));
+        when(userRepo.findWithRolesByEmailIgnoreCase("boss@edge.ae")).thenReturn(Optional.of(bossUser));
 
         svc.fullSync();
 
@@ -197,7 +224,7 @@ class SafReconDirectorySyncServiceTest {
         u.setEmail("solo@edge.ae");
         u.setActive(true);
         u.setRoles(new HashSet<>(Set.of(role("EMPLOYEE"), role("MANAGER"), role("HR_FULL_CRUD"))));
-        when(userRepo.findWithRolesByEmail("solo@edge.ae")).thenReturn(Optional.of(u));
+        when(userRepo.findWithRolesByEmailIgnoreCase("solo@edge.ae")).thenReturn(Optional.of(u));
 
         svc.fullSync();
 

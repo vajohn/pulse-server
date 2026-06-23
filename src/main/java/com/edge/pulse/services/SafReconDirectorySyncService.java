@@ -8,6 +8,7 @@ import com.edge.pulse.data.dto.safrecon.SafReconOrgUnit;
 import com.edge.pulse.data.enums.OrgLevel;
 import com.edge.pulse.data.models.*;
 import com.edge.pulse.repositories.*;
+import com.edge.pulse.util.EmailNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -96,7 +97,7 @@ public class SafReconDirectorySyncService {
             Map<String, Long> emailCounts = new HashMap<>();
             for (SafReconEmployee e : employees) {
                 if (e.workEmail() != null && !e.workEmail().isBlank()) {
-                    emailCounts.merge(e.workEmail().toLowerCase(), 1L, Long::sum);
+                    emailCounts.merge(EmailNormalizer.normalizeEmail(e.workEmail()), 1L, Long::sum);
                 }
             }
             Set<String> duplicateEmails = emailCounts.entrySet().stream()
@@ -118,11 +119,14 @@ public class SafReconDirectorySyncService {
             for (SafReconEmployee e : employees) {
                 try {
                     if (e.workEmail() == null || e.workEmail().isBlank()) { errors++; continue; }
+                    // PULSE-8: canonicalise the SF-cased email before lookup/write so login and sync
+                    // converge on one identity (was the orphan-creation root cause).
+                    String email = EmailNormalizer.normalizeEmail(e.workEmail());
                     // Skip duplicate emails entirely — no insert, no enrichment, no overwrite.
-                    if (duplicateEmails.contains(e.workEmail().toLowerCase())) { skipped++; continue; }
-                    User u = userRepo.findWithRolesByEmail(e.workEmail()).orElse(null);
+                    if (duplicateEmails.contains(email)) { skipped++; continue; }
+                    User u = userRepo.findWithRolesByEmailIgnoreCase(email).orElse(null);
                     boolean isNew = u == null;
-                    if (isNew) { u = new User(); u.setEmail(e.workEmail()); }
+                    if (isNew) { u = new User(); u.setEmail(email); }
                     u.setDisplayName(deriveName(e));
                     u.setSfUserId(e.sfUserId());
                     u.setEmployeeId(e.sfUserId());
@@ -142,7 +146,7 @@ public class SafReconDirectorySyncService {
                     User saved = userRepo.save(u);
                     upsertProfile(saved, e);
                     userBySafEmpId.put(e.id(), saved);
-                    seenEmails.add(e.workEmail().toLowerCase());
+                    seenEmails.add(email);
                     cacheService.evict(FormCacheService.userAssignmentsKey(saved.getId()));
                     if (isNew) usersCreated++; else usersUpdated++;
                 } catch (Exception ex) {
@@ -166,9 +170,10 @@ public class SafReconDirectorySyncService {
             // Deactivate-missing (guarded). Never deactivate an ambiguous (duplicate-email) user.
             if (props.getDeactivateFloor() <= 0 || employees.size() >= props.getDeactivateFloor()) {
                 for (User existing : userRepo.findAll()) {
-                    if (existing.isActive() && existing.getEmail() != null
-                            && !seenEmails.contains(existing.getEmail().toLowerCase())
-                            && !duplicateEmails.contains(existing.getEmail().toLowerCase())) {
+                    String existingEmail = EmailNormalizer.normalizeEmail(existing.getEmail());
+                    if (existing.isActive() && existingEmail != null
+                            && !seenEmails.contains(existingEmail)
+                            && !duplicateEmails.contains(existingEmail)) {
                         existing.setActive(false);
                         userRepo.save(existing);
                         usersDeactivated++;

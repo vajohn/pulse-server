@@ -3,6 +3,7 @@ package com.edge.pulse.services;
 import com.edge.pulse.data.enums.OrgLevel;
 import com.edge.pulse.data.models.*;
 import com.edge.pulse.repositories.*;
+import com.edge.pulse.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,12 +32,14 @@ public class UserProvisioningService {
     private boolean autoAdmin;
 
     @Transactional
-    public User provisionOrUpdateUser(String azureAdId, String email, String displayName, String titleName,
+    public User provisionOrUpdateUser(String azureAdId, String rawEmail, String displayName, String titleName,
                                       Set<String> roleNames, Set<String> permissionNames, Set<String> teamNames, Set<String> groupNames) {
+        // PULSE-8: canonicalise email for both lookup and persistence so casing can never fork identity.
+        final String email = EmailNormalizer.normalizeEmail(rawEmail);
         User user = userRepository.findByAzureAdId(azureAdId)
                 .or(() -> {
                     // Fallback: user exists with this email but a different/null azureAdId (e.g. seeded data)
-                    Optional<User> byEmail = userRepository.findByEmail(email);
+                    Optional<User> byEmail = userRepository.findByEmailIgnoreCase(email);
                     byEmail.ifPresent(u -> {
                         u.setAzureAdId(azureAdId);
                         log.info("Linked azureAdId {} to existing user {} found by email", azureAdId, email);
