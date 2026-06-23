@@ -3,6 +3,7 @@ package com.edge.pulse.services;
 import com.edge.pulse.data.dto.AdminReportSummary;
 import com.edge.pulse.data.dto.AnalyticsSummaryDto;
 import com.edge.pulse.data.dto.AssignmentBreakdownDto;
+import com.edge.pulse.data.dto.EngagementSummaryDto;
 import com.edge.pulse.data.dto.OrgUnitNodeDto;
 import com.edge.pulse.data.dto.QuestionReportDto;
 import com.edge.pulse.data.dto.SurveyReportDto;
@@ -203,6 +204,171 @@ public class AnalyticsService {
                 (int) anonymousRespondents,
                 (int) identifiedRespondents
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Org-wide engagement analytics (PULSE-WEB-4)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Org-wide engagement summary for the HR dashboard (WEB-5) and scope
+     * switcher (WEB-6).
+     *
+     * <p>Scope resolution: when {@code nodeId} is supplied the metrics are
+     * computed for that org unit (subtree when {@code includeChildren}, the unit
+     * alone otherwise). The caller is bounded by their own SCOPE_* authority —
+     * a node outside the caller's accessible set yields a masked result rather
+     * than leaking out-of-scope data. When {@code nodeId} is null and the caller
+     * has broad scope the view is global; a narrow-scope caller with no node is
+     * pinned to their own org unit subtree.
+     *
+     * <p>Privacy: any resolved scope with fewer than {@link AnalyticsConstants#MIN_RESPONDENTS}
+     * distinct completed respondents returns {@code masked=true} with no aggregates.
+     *
+     * @param scopeLevel echoed back to the client (GROUP|CLUSTER|ENTITY|ORG_UNIT|TEAM); informational
+     * @param nodeId     org unit to scope to, or null
+     * @param includeChildren include the node's descendants when true; the node alone when false
+     * @param days       engagement window length in days (must be &gt; 0)
+     */
+    @Transactional(readOnly = true)
+    public EngagementSummaryDto getEngagementSummary(String scopeLevel, UUID nodeId,
+                                                     boolean includeChildren, int days,
+                                                     UUID requestingUserId) {
+        int periodDays = days > 0 ? days : 30;
+
+        // Resolve the org node, bounded by the caller's scope.
+        OrganizationalUnit node = resolveScopedNode(nodeId, requestingUserId);
+
+        final String pathFilter;     // null = global
+        final UUID resolvedNodeId;
+        final String resolvedNodeName;
+        if (node != null) {
+            pathFilter       = buildPathPrefix(node);
+            resolvedNodeId   = node.getId();
+            resolvedNodeName = node.getOrgUnitName();
+        } else {
+            // No node resolved. Global only when caller has broad scope; otherwise
+            // a narrow-scope caller is pinned to their own subtree (resolvePathPrefix).
+            Collection<String> authorities = extractAuthoritiesFromContext();
+            if (orgUnitScopeService.hasBroadScope(authorities)) {
+                pathFilter = null;
+            } else {
+                String own = resolvePathPrefix(null, requestingUserId);
+                if (own == null) {
+                    // No org unit and no broad scope → nothing visible → masked.
+                    return EngagementSummaryDto.masked(
+                            normalizeScopeLevel(scopeLevel), null, null, includeChildren, periodDays);
+                }
+                pathFilter = own;
+            }
+            resolvedNodeId   = null;
+            resolvedNodeName = null;
+        }
+
+        // includeChildren only narrows when a concrete node is scoped; global
+        // (pathFilter == null) ignores it. exactOnly = scope to the node alone.
+        boolean exactOnly = pathFilter != null && !includeChildren;
+
+        LocalDateTime now      = LocalDateTime.now();
+        LocalDateTime curStart = now.minusDays(periodDays);
+
+        long respondents = scaleRepo.countScopedRespondents(pathFilter, exactOnly, curStart);
+
+        // SERVER-SIDE privacy gate: suppress everything below the threshold.
+        if (respondents < MIN_RESPONDENTS) {
+            return EngagementSummaryDto.masked(
+                    normalizeScopeLevel(scopeLevel), resolvedNodeId, resolvedNodeName,
+                    includeChildren, periodDays);
+        }
+
+        double overall = scaleRepo.findScopedOverallAverage(pathFilter, exactOnly, curStart).orElse(0.0);
+
+        // Per-form ("category") means. Suppress any form that is individually
+        // below the respondent threshold so a small sub-cohort can't be isolated.
+        List<EngagementSummaryDto.CategoryScore> categoryScores =
+                scaleRepo.findScopedFormAverages(pathFilter, exactOnly, curStart).stream()
+                        .filter(r -> ((Number) r[2]).intValue() >= MIN_RESPONDENTS)
+                        .map(r -> new EngagementSummaryDto.CategoryScore(
+                                (String) r[0],
+                                ((Number) r[1]).doubleValue(),
+                                ((Number) r[2]).intValue()))
+                        .toList();
+
+        List<EngagementSummaryDto.ScoreBucket> distribution =
+                scaleRepo.findScopedScoreDistribution(pathFilter, exactOnly, curStart).stream()
+                        .map(r -> new EngagementSummaryDto.ScoreBucket(
+                                ((Number) r[0]).intValue(),
+                                ((Number) r[1]).longValue()))
+                        .toList();
+
+        // Eligible users = active users in the resolved scope (participation denominator).
+        long eligibleUsers;
+        if (pathFilter == null) {
+            eligibleUsers = userRepository.countByActiveTrue();
+        } else if (exactOnly && node != null) {
+            eligibleUsers = userRepository.countByOrgUnitIdAndActiveTrue(node.getId());
+        } else {
+            eligibleUsers = userRepository.countByOrgUnitPathStartingWithAndActiveTrue(pathFilter);
+        }
+        double participationRate = eligibleUsers > 0
+                ? (double) respondents / eligibleUsers * 100.0
+                : 0.0;
+
+        // Trend vs the immediately-preceding window of the same length.
+        LocalDateTime prevStart = curStart.minusDays(periodDays);
+        long prevRespondents = scaleRepo.countScopedRespondentsInWindow(
+                pathFilter, exactOnly, prevStart, curStart);
+        EngagementSummaryDto.Trend trend;
+        if (prevRespondents >= MIN_RESPONDENTS) {
+            double prev  = scaleRepo.findScopedOverallAverageInWindow(
+                    pathFilter, exactOnly, prevStart, curStart).orElse(0.0);
+            double delta = overall - prev;
+            String dir = Math.abs(delta) < 1e-9 ? "FLAT" : (delta > 0 ? "UP" : "DOWN");
+            trend = new EngagementSummaryDto.Trend(overall, prev, delta, dir);
+        } else {
+            // Not enough prior-period respondents to compare without leaking a tiny cohort.
+            trend = new EngagementSummaryDto.Trend(overall, null, null, "NO_PRIOR_DATA");
+        }
+
+        return new EngagementSummaryDto(
+                normalizeScopeLevel(scopeLevel),
+                resolvedNodeId, resolvedNodeName, includeChildren, periodDays,
+                false,
+                (int) respondents,
+                (int) eligibleUsers,
+                participationRate,
+                overall,
+                categoryScores,
+                distribution,
+                trend,
+                null /* eNPS unsupported by data model — see report */);
+    }
+
+    private String normalizeScopeLevel(String scopeLevel) {
+        return (scopeLevel == null || scopeLevel.isBlank()) ? "GLOBAL" : scopeLevel;
+    }
+
+    /**
+     * Resolves the requested org node, bounded by the caller's scope.
+     * Returns null when no node was requested. Returns null (→ caller falls back
+     * to their own-scope path or global) when the requested node is outside the
+     * caller's accessible set, so out-of-scope data is never surfaced.
+     */
+    private OrganizationalUnit resolveScopedNode(UUID nodeId, UUID requestingUserId) {
+        if (nodeId == null || requestingUserId == null) return null;
+        OrganizationalUnit node = orgUnitRepository.findById(nodeId).orElse(null);
+        if (node == null) return null;
+
+        Collection<String> authorities = extractAuthoritiesFromContext();
+        if (orgUnitScopeService.hasBroadScope(authorities)) {
+            return node;
+        }
+        // Narrow scope: only allow nodes inside the caller's own subtree.
+        String ownPrefix = resolvePathPrefix(null, requestingUserId);
+        if (ownPrefix != null && matchesPathScope(node.getPath(), ownPrefix)) {
+            return node;
+        }
+        return null;
     }
 
     // -----------------------------------------------------------------------

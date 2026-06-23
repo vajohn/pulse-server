@@ -167,4 +167,101 @@ public interface AnswerScaleRepository extends JpaRepository<AnswerScale, UUID> 
     List<Object[]> findOrgUnitScoresFiltered(@Param("minN") int minRespondents,
                                              @Param("pathFilter") String pathFilter,
                                              @Param("since") LocalDateTime since);
+
+    // -----------------------------------------------------------------------
+    // Org-wide engagement analytics (PULSE-WEB-4).
+    // exactOnly = true restricts to the org unit itself (path = :pathFilter);
+    // exactOnly = false (the default subtree behaviour) also matches descendants.
+    // pathFilter null = global. since lower-bounds completedAt (use the epoch
+    // sentinel LocalDateTime.of(2000,1,1,0,0) to include all records).
+    // -----------------------------------------------------------------------
+
+    /** Overall scale-answer average across the scope+window. */
+    @Query("SELECT AVG(CAST(a.value AS double)) FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE a.submission.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since")
+    Optional<Double> findScopedOverallAverage(@Param("pathFilter") String pathFilter,
+                                              @Param("exactOnly") boolean exactOnly,
+                                              @Param("since") LocalDateTime since);
+
+    /** Distinct completed respondent count across the scope+window (scale answers only). */
+    @Query("SELECT COUNT(DISTINCT rs.id) FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE a.submission.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since")
+    long countScopedRespondents(@Param("pathFilter") String pathFilter,
+                                @Param("exactOnly") boolean exactOnly,
+                                @Param("since") LocalDateTime since);
+
+    /** Per-form [formTitle, avgScore, respondentCount] within scope+window. */
+    @Query("SELECT sub.question.form.title, AVG(CAST(a.value AS double)), COUNT(DISTINCT rs.id) " +
+           "FROM AnswerScale a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE a.submission.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since " +
+           "GROUP BY sub.question.form.id, sub.question.form.title " +
+           "ORDER BY sub.question.form.title ASC")
+    List<Object[]> findScopedFormAverages(@Param("pathFilter") String pathFilter,
+                                          @Param("exactOnly") boolean exactOnly,
+                                          @Param("since") LocalDateTime since);
+
+    /** Score histogram [scoreValue, count] across scope+window, ascending. */
+    @Query("SELECT a.value, COUNT(a) FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE a.submission.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since " +
+           "GROUP BY a.value ORDER BY a.value ASC")
+    List<Object[]> findScopedScoreDistribution(@Param("pathFilter") String pathFilter,
+                                               @Param("exactOnly") boolean exactOnly,
+                                               @Param("since") LocalDateTime since);
+
+    /** Overall average over an explicit [since, until) window — used for trend deltas. */
+    @Query("SELECT AVG(CAST(a.value AS double)) FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE a.submission.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until")
+    Optional<Double> findScopedOverallAverageInWindow(@Param("pathFilter") String pathFilter,
+                                                      @Param("exactOnly") boolean exactOnly,
+                                                      @Param("since") LocalDateTime since,
+                                                      @Param("until") LocalDateTime until);
+
+    /** Distinct respondent count over an explicit [since, until) window. */
+    @Query("SELECT COUNT(DISTINCT rs.id) FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE a.submission.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until")
+    long countScopedRespondentsInWindow(@Param("pathFilter") String pathFilter,
+                                        @Param("exactOnly") boolean exactOnly,
+                                        @Param("since") LocalDateTime since,
+                                        @Param("until") LocalDateTime until);
 }
