@@ -70,6 +70,22 @@ logging:
     root: INFO
     com.edge.pulse: DEBUG
 
+# Observability baseline — parity with xdeal (actuator health + k8s probes only).
+# Only `health` and `info` are exposed; all other actuator endpoints stay disabled.
+# show-details: never => aggregate UP/DOWN only (DB + Redis indicators still gate the
+# aggregate via the auto-configured db/redis health contributors). Metrics/Prometheus
+# and JSON logging are deliberately deferred (see ai/tickets/PULSE-5).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
 survey:
   default-anon-window-minutes: 60
 

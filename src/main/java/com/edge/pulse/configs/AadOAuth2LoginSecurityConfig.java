@@ -71,6 +71,10 @@ public class AadOAuth2LoginSecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
+                // Actuator health + k8s liveness/readiness probes must be reachable unauthenticated
+                // (otherwise the catch-all chain 401s them and pods never become Ready). Only health
+                // is exposed (see application.yaml management config); other endpoints stay disabled.
+                .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                 .anyRequest().authenticated()
             );
         return http.build();
