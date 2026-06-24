@@ -6,6 +6,7 @@ import com.edge.pulse.data.dto.UpdateQuestionRequest;
 import com.edge.pulse.data.dto.psychometric.*;
 import com.edge.pulse.data.enums.TestResultStatus;
 import com.edge.pulse.data.enums.TestStatus;
+import com.edge.pulse.services.psychometric.CadenceAdminService;
 import com.edge.pulse.services.psychometric.PsychometricAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,32 @@ import java.util.UUID;
 public class AdminPsychometricController {
 
     private final PsychometricAdminService adminService;
+    private final CadenceAdminService cadenceAdminService;
+
+    // ── Micro-engagement cadence config (Phase 3, D2) ─────────────────────────────
+
+    @GetMapping("/tests/{testId}/cadences")
+    @PreAuthorize("hasAuthority('ASSESS_READ')")
+    public ResponseEntity<List<CadenceConfigDto>> listCadences(@PathVariable UUID testId) {
+        return ResponseEntity.ok(cadenceAdminService.list(testId));
+    }
+
+    @PostMapping("/tests/{testId}/cadences")
+    @PreAuthorize("hasAuthority('ASSESS_UPDATE')")
+    public ResponseEntity<CadenceConfigDto> createCadence(
+            @PathVariable UUID testId, @Valid @RequestBody CadenceConfigRequest req,
+            Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(cadenceAdminService.create(testId, req, (UUID) auth.getPrincipal()));
+    }
+
+    @DeleteMapping("/tests/{testId}/cadences/{cadenceId}")
+    @PreAuthorize("hasAuthority('ASSESS_DELETE')")
+    public ResponseEntity<Void> deleteCadence(
+            @PathVariable UUID testId, @PathVariable UUID cadenceId) {
+        cadenceAdminService.deactivate(testId, cadenceId);
+        return ResponseEntity.noContent().build();
+    }
 
     // ── Test CRUD ────────────────────────────────────────────────────────────────
 
