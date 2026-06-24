@@ -21,7 +21,9 @@ import com.edge.pulse.data.enums.QuestionType;
 import com.edge.pulse.data.enums.ScoreDirection;
 import com.edge.pulse.data.enums.ScoreMethod;
 import com.edge.pulse.data.enums.TestType;
+import com.edge.pulse.data.models.psychometric.PsychometricAsset;
 import com.edge.pulse.services.psychometric.PsychometricAdminService;
+import com.edge.pulse.services.psychometric.assets.AssetService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +50,7 @@ import static org.mockito.Mockito.when;
 class AssessmentImporterTest {
 
     @Mock PsychometricAdminService admin;
+    @Mock AssetService assetService;
     @InjectMocks AssessmentImporter importer;
 
     // ── DTO factories (match the real record field order) ──────────────────────
@@ -348,5 +352,44 @@ class AssessmentImporterTest {
                 .hasMessageContaining("unknown scale");
 
         verify(admin, never()).saveScoringKey(any(), anyList(), any());
+    }
+
+    @Test
+    void importPackage_withImages_rehostsAndRewritesBody() {
+        UUID testId = UUID.randomUUID();
+        UUID qId = UUID.randomUUID();
+        UUID scaleId = UUID.randomUUID();
+        UUID optId1 = UUID.randomUUID();
+        UUID optId2 = UUID.randomUUID();
+        UUID assetId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        when(admin.addQuestion(eq(testId), any(), any())).thenReturn(questionDto(qId, optId1, optId2));
+        when(admin.createScale(eq(testId), any(), any())).thenReturn(scaleDto(scaleId, "ATD"));
+        when(assetService.store(any(), any(), eq("Q1.png"), any()))
+                .thenReturn(PsychometricAsset.builder().id(assetId).build());
+
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(new ParsedQuestion("Q1",
+                        "How many differences?\n![Q1.png](/api/backend/files/abc.png)", "بيان",
+                        List.of(new ParsedOption("A", "أ", 1, 0),
+                                new ParsedOption("B", "ب", 2, 1)))),
+                List.of(new ScoringSheetScale("ATD", null, ScoreMethod.SUM,
+                        NormStrategyType.EMPIRICAL_PERCENTILE,
+                        null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(new ScoringSheetItem("Q1", "ATD", ScoreDirection.FORWARD,
+                        ItemStrategyType.ANSWER_KEY_SINGLE, 1.0, null)),
+                List.of(new AnswerKeyEntry("Q1", 2)));
+
+        Map<String, byte[]> images = Map.of("Q1.png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
+
+        importer.importPackage(
+                new ImportPackageRequest("ATD", "desc", TestType.COGNITIVE, 600), pkg, images, UUID.randomUUID());
+
+        ArgumentCaptor<AddQuestionRequest> qCap = ArgumentCaptor.forClass(AddQuestionRequest.class);
+        verify(admin).addQuestion(eq(testId), qCap.capture(), any());
+        AddQuestionRequest built = qCap.getValue();
+        assertThat(built.body()).contains("/api/psychometric/assets/" + assetId);
+        assertThat(built.body()).doesNotContain("/api/backend/files");
     }
 }

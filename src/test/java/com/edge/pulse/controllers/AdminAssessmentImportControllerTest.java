@@ -64,7 +64,7 @@ class AdminAssessmentImportControllerTest {
 
     @Test
     void import_validPackage_returns200() throws Exception {
-        when(importer.importPackage(any(), any(), any()))
+        when(importer.importPackage(any(), any(), any(), any()))
                 .thenReturn(new ImportResultDto(true, UUID.randomUUID(), 1, 1, 1, 1, List.of()));
 
         var q = new MockMultipartFile("questions", "questions.csv", "text/csv",
@@ -111,7 +111,7 @@ class AdminAssessmentImportControllerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errors").isArray());
 
-        verify(importer, never()).importPackage(any(), any(), any());
+        verify(importer, never()).importPackage(any(), any(), any(), any());
     }
 
     // -------------------------------------------------------------------------
@@ -120,7 +120,7 @@ class AdminAssessmentImportControllerTest {
 
     @Test
     void import_importerThrowsIllegalArgument_returns422WithErrors() throws Exception {
-        when(importer.importPackage(any(), any(), any()))
+        when(importer.importPackage(any(), any(), any(), any()))
                 .thenThrow(new IllegalArgumentException("unresolved tag scale reference"));
 
         var q = new MockMultipartFile("questions", "questions.csv", "text/csv",

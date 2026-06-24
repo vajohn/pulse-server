@@ -16,9 +16,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * Multipart endpoint to import a 3-CSV assessment package (questions + answer_key + scoring_sheet)
@@ -49,6 +55,7 @@ public class AdminAssessmentImportController {
             @RequestParam(value = "description", required = false) String description,
             @RequestParam("testType") TestType testType,
             @RequestParam(value = "timeLimitSecs", required = false) Integer timeLimitSecs,
+            @RequestParam(value = "images", required = false) MultipartFile images,
             Authentication auth) throws Exception {
 
         AssessmentPackageParser.ParseOutcome outcome = parser.parse(
@@ -61,11 +68,21 @@ public class AdminAssessmentImportController {
                     .body(new ImportResultDto(false, null, 0, 0, 0, 0, outcome.errors()));
         }
 
+        Map<String, byte[]> imageBytes;
+        try {
+            imageBytes = (images != null && !images.isEmpty()) ? unzipImages(images) : Map.of();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(new ImportResultDto(false, null, 0, 0, 0, 0,
+                            List.of(new ImportError("images", "-", "-", ex.getMessage()))));
+        }
+
         ImportResultDto result;
         try {
             result = importer.importPackage(
                     new ImportPackageRequest(testName, description, testType, timeLimitSecs),
                     outcome.pkg(),
+                    imageBytes,
                     (UUID) auth.getPrincipal());
         } catch (IllegalArgumentException ex) {
             // Importer-side runtime validation failure (e.g. unresolved reference): return the
@@ -76,5 +93,44 @@ public class AdminAssessmentImportController {
         }
 
         return ResponseEntity.ok(result);
+    }
+
+    private static final int MAX_ENTRY_BYTES = 5 * 1024 * 1024; // per-image 5 MB guard (§10)
+
+    /**
+     * Unzips an uploaded image set into a {@code filename -> bytes} map. Skips directories; accepts
+     * only {@code .png}/{@code .jpg}/{@code .jpeg}; caps each entry at 5 MB. The map key is the
+     * entry's base filename (no path) — it is matched against markdown alt-text in the importer.
+     */
+    private Map<String, byte[]> unzipImages(MultipartFile images) throws Exception {
+        Map<String, byte[]> out = new HashMap<>();
+        try (ZipInputStream zis = new ZipInputStream(images.getInputStream())) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (entry.isDirectory()) continue;
+                String name = entry.getName();
+                int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+                String base = slash >= 0 ? name.substring(slash + 1) : name;
+                String lower = base.toLowerCase(Locale.ROOT);
+                if (!(lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg"))) {
+                    continue;
+                }
+                ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                byte[] chunk = new byte[8192];
+                int read;
+                int total = 0;
+                while ((read = zis.read(chunk)) != -1) {
+                    total += read;
+                    if (total > MAX_ENTRY_BYTES) {
+                        throw new IllegalArgumentException("Image " + base + " exceeds " + MAX_ENTRY_BYTES + " bytes");
+                    }
+                    buf.write(chunk, 0, read);
+                }
+                if (buf.size() > 0) {
+                    out.put(base, buf.toByteArray());
+                }
+            }
+        }
+        return out;
     }
 }

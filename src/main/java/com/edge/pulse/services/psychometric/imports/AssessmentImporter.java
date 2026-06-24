@@ -21,6 +21,8 @@ import com.edge.pulse.data.enums.ItemStrategyType;
 import com.edge.pulse.data.enums.NormStrategyType;
 import com.edge.pulse.data.enums.QuestionType;
 import com.edge.pulse.services.psychometric.PsychometricAdminService;
+import com.edge.pulse.services.psychometric.assets.AssetService;
+import com.edge.pulse.services.psychometric.assets.MarkdownImageRefs;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,13 +53,30 @@ import java.util.stream.Collectors;
 public class AssessmentImporter {
 
     private final PsychometricAdminService admin;
+    private final AssetService assetService;
 
-    public AssessmentImporter(PsychometricAdminService admin) {
+    public AssessmentImporter(PsychometricAdminService admin, AssetService assetService) {
         this.admin = admin;
+        this.assetService = assetService;
+    }
+
+    /** Backward-compatible overload: import with no image set (non-image assessments). */
+    @Transactional
+    public ImportResultDto importPackage(ImportPackageRequest meta, ParsedPackage pkg, UUID userId) {
+        return importPackage(meta, pkg, Map.of(), userId);
     }
 
     @Transactional
-    public ImportResultDto importPackage(ImportPackageRequest meta, ParsedPackage pkg, UUID userId) {
+    public ImportResultDto importPackage(ImportPackageRequest meta, ParsedPackage pkg,
+                                         Map<String, byte[]> images, UUID userId) {
+        // Index supplied images by normalized filename once (filename == markdown alt-text).
+        Map<String, byte[]> imagesByNorm = new HashMap<>();
+        if (images != null) {
+            for (Map.Entry<String, byte[]> e : images.entrySet()) {
+                imagesByNorm.put(MarkdownImageRefs.normalize(e.getKey()), e.getValue());
+            }
+        }
+
         // 1. Create the test (Form + PsychometricTest).
         PsychometricTestDto test = admin.createTest(new CreatePsychometricTestRequest(
                 meta.testName(), meta.description(), null, meta.testType(), meta.timeLimitSecs()), userId);
@@ -68,6 +87,9 @@ public class AssessmentImporter {
         Map<String, Map<Integer, UUID>> optionIdByHeaderValue = new HashMap<>();
         for (ParsedQuestion q : pkg.questions()) {
             QuestionType qType = questionTypeFor(pkg, q);
+            // Resolve+rehost any markdown image refs in the bodies; rewrite to our authenticated URL.
+            String bodyEn = rehostBody(q.bodyEn(), imagesByNorm);
+            String bodyAr = rehostBody(q.bodyAr(), imagesByNorm);
             AddQuestionRequest req;
             if (qType == QuestionType.SCALE) {
                 // A SCALE question is answered via answer_scale.value (1..N) — it must carry
@@ -82,7 +104,7 @@ public class AssessmentImporter {
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "SCALE question '" + q.header() + "' has no options to derive a range from"));
                 req = new AddQuestionRequest(
-                        q.bodyEn(), q.bodyAr(), qType,
+                        bodyEn, bodyAr, qType,
                         null, null, 0,
                         null,                       // candidateAnswers — NONE for SCALE
                         null, null,                 // subjectLabels / subjectLabelsAr
@@ -98,7 +120,7 @@ public class AssessmentImporter {
                         .map(o -> new CandidateAnswerDto(null, o.labelEn(), o.labelAr(), o.displayOrder()))
                         .toList();
                 req = new AddQuestionRequest(
-                        q.bodyEn(), q.bodyAr(), qType,
+                        bodyEn, bodyAr, qType,
                         null, null, 0,
                         opts,
                         null, null,           // subjectLabels / subjectLabelsAr
@@ -198,6 +220,32 @@ public class AssessmentImporter {
         return new ImportResultDto(true, testId,
                 pkg.questions().size(), pkg.scales().size(), pkg.items().size(),
                 norms.size(), List.of());
+    }
+
+    /**
+     * Resolves each markdown image ref in {@code body} against the supplied image set (keyed by
+     * normalized filename == alt-text), stores it via {@link AssetService} (sha256-dedup), and
+     * rewrites the body URL to our authenticated {@code /api/psychometric/assets/{id}} endpoint.
+     *
+     * <p>Refuse-partial: when an image set is supplied but a ref cannot be resolved, throws
+     * {@link IllegalArgumentException}. When no image set is supplied ({@code imagesByNorm} empty),
+     * bodies are left untouched (non-image assessments unaffected). AR variants (filename containing
+     * {@code ARA}) are tagged with locale {@code "ar"}, otherwise {@code "en"}.
+     */
+    private String rehostBody(String body, Map<String, byte[]> imagesByNorm) {
+        if (body == null) return null;
+        String out = body;
+        for (MarkdownImageRefs.Ref ref : MarkdownImageRefs.extract(body)) {
+            byte[] bytes = imagesByNorm.get(MarkdownImageRefs.normalize(ref.alt()));
+            if (bytes == null) {
+                if (imagesByNorm.isEmpty()) continue; // no image set supplied -> leave as-is
+                throw new IllegalArgumentException("Image not found for ref: " + ref.alt());
+            }
+            String locale = ref.alt().toLowerCase().replaceAll("[^a-z0-9]", "").contains("ara") ? "ar" : "en";
+            var asset = assetService.store(bytes, "image/png", ref.alt(), locale);
+            out = MarkdownImageRefs.rewrite(out, ref.url(), "/api/psychometric/assets/" + asset.getId());
+        }
+        return out;
     }
 
     /**
