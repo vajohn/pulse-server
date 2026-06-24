@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -82,14 +83,21 @@ public class AssessmentImporter {
             QuestionDto created = admin.addQuestion(testId, req, userId);
             questionIdByHeader.put(q.header(), created.id());
 
-            // The created options come back in the order we sent them (parsed displayOrder order),
-            // so option i corresponds to parsed value i.
+            // Map created options to parsed values by displayOrder, not list position, so that any
+            // reordering in the service layer does not silently wire the wrong option ids.
             List<CandidateAnswerDto> createdOpts = created.candidateAnswers();
             Map<Integer, UUID> byValue = new HashMap<>();
             if (createdOpts != null) {
-                for (int i = 0; i < createdOpts.size() && i < q.options().size(); i++) {
-                    int value = q.options().get(i).value();
-                    byValue.put(value, createdOpts.get(i).id());
+                for (CandidateAnswerDto ca : createdOpts) {
+                    int order = ca.displayOrder();
+                    if (order < 0 || order >= q.options().size()) {
+                        throw new IllegalArgumentException(
+                                "Returned option has displayOrder " + order
+                                + " which is out of range [0, " + q.options().size()
+                                + ") for question '" + q.header() + "'");
+                    }
+                    ParsedOption parsed = q.options().get(order);
+                    byValue.put(parsed.value(), ca.id());
                 }
             }
             optionIdByHeaderValue.put(q.header(), byValue);
@@ -210,24 +218,34 @@ public class AssessmentImporter {
     }
 
     /**
-     * Determines the {@link QuestionType} for a question header from the item strategy of the
-     * scoring item that references it. Falls back to CHOICE_SINGLE when no item references the
-     * header (defensive; the parser guarantees every item's header exists).
+     * Determines the {@link QuestionType} for a question header from the item strategies of all
+     * scoring items that reference it. Multiple items sharing the SAME strategy (e.g. VIP's
+     * per-scale OPTION_TAGGED_TALLY items) are fine. If two distinct strategies that map to
+     * different QuestionTypes both reference the same question header an
+     * {@link IllegalArgumentException} is thrown — such a package is malformed.
+     * Falls back to CHOICE_SINGLE when no item references the header (defensive; the parser
+     * guarantees every item's header exists).
      */
     private QuestionType questionTypeFor(ParsedPackage pkg, String header) {
-        ItemStrategyType strategy = pkg.items().stream()
+        Set<QuestionType> distinctTypes = pkg.items().stream()
                 .filter(it -> header.equals(it.questionHeader()))
                 .map(ScoringSheetItem::itemStrategy)
-                .findFirst()
-                .orElse(null);
-        if (strategy == null) {
+                .filter(s -> s != null)
+                .map(s -> switch (s) {
+                    case LIKERT_VALUE -> QuestionType.SCALE;
+                    case ANSWER_KEY_MULTIPLE -> QuestionType.CHOICE_MULTIPLE;
+                    case ADJECTIVE_COUNT -> QuestionType.ADJECTIVE_CHECKLIST;
+                    case ANSWER_KEY_SINGLE, BINARY_FORCED_CHOICE, OPTION_TAGGED_TALLY -> QuestionType.CHOICE_SINGLE;
+                })
+                .collect(Collectors.toSet());
+
+        if (distinctTypes.isEmpty()) {
             return QuestionType.CHOICE_SINGLE;
         }
-        return switch (strategy) {
-            case LIKERT_VALUE -> QuestionType.SCALE;
-            case ANSWER_KEY_MULTIPLE -> QuestionType.CHOICE_MULTIPLE;
-            case ADJECTIVE_COUNT -> QuestionType.ADJECTIVE_CHECKLIST;
-            case ANSWER_KEY_SINGLE, BINARY_FORCED_CHOICE, OPTION_TAGGED_TALLY -> QuestionType.CHOICE_SINGLE;
-        };
+        if (distinctTypes.size() > 1) {
+            throw new IllegalArgumentException(
+                    "Conflicting question types for question '" + header + "': " + distinctTypes);
+        }
+        return distinctTypes.iterator().next();
     }
 }

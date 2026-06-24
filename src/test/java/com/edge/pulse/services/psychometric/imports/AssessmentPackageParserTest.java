@@ -59,6 +59,34 @@ class AssessmentPackageParserTest {
     }
 
     @Test
+    void reportsBlankDirectionOnItemRow() {
+        // An item row with no direction value should produce a required-direction error
+        String sheetBlankDirection =
+            "rowType,name,parentName,scoreMethod,normStrategy,mean,sd,tFactor,tOffset,tClipLo,tClipHi,compositeMethod,compositeBasis,childScales,roundingScale,restricted,questionHeader,scaleName,direction,itemStrategy,weight,tagScaleName\n" +
+            "scale,Agility,,SUM,PARAMETRIC,7.92,3.10,10,50,10,120,,,,,,,,,,,\n" +
+            "item,,,,,,,,,,,,,,,,Q1,Agility,,BINARY_FORCED_CHOICE,1,\n";
+        var result = new AssessmentPackageParser().parse(questions, answerKey, sheetBlankDirection);
+        assertThat(result.errors()).anyMatch(e ->
+                e.file().equals("scoring_sheet.csv")
+                && e.column().equals("direction")
+                && e.message().contains("direction is required for item rows"));
+    }
+
+    @Test
+    void reportsUnknownAnswerKeyColumn() {
+        // The ANS row references a column (QUNKNOWN) that is not a parsed question header
+        String badAnswerKey = "header,Q1,QUNKNOWN\nANS,2,1\n";
+        var result = new AssessmentPackageParser().parse(questions, badAnswerKey, scoringSheet);
+        assertThat(result.errors()).anyMatch(e ->
+                e.file().equals("answer_key.csv")
+                && e.row().equals("ANS")
+                && e.column().equals("QUNKNOWN")
+                && e.message().contains("unknown question"));
+        // The valid Q1 entry should still be emitted
+        assertThat(result.pkg().answerKey()).anyMatch(a -> a.questionHeader().equals("Q1"));
+    }
+
+    @Test
     void reportsMalformedOptionValue() {
         // A non-numeric value{k} cell should produce a parse error, not throw
         String badQuestions =

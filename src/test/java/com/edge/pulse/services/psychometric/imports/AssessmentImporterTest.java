@@ -63,6 +63,13 @@ class AssessmentImporterTest {
                 null, null, false, null, null, null, null, null, null, null);
     }
 
+    private static QuestionDto questionDtoSingleOpt(UUID qId, UUID optId) {
+        return new QuestionDto(qId, "Stmt", "بيان", QuestionType.SCALE, 0,
+                null, null,
+                List.of(new CandidateAnswerDto(optId, "A", "أ", 0)),
+                null, null, false, null, null, null, null, null, null, null);
+    }
+
     private static PsychometricScaleDto scaleDto(UUID scaleId, String name) {
         return new PsychometricScaleDto(scaleId, UUID.randomUUID(), null, name, null,
                 "SUM", 0, null, null, null);
@@ -150,13 +157,83 @@ class AssessmentImporterTest {
     }
 
     @Test
+    void conflictingStrategiesForSameQuestion_throwsIllegalArgument() {
+        UUID testId = UUID.randomUUID();
+
+        // questionTypeFor throws before addQuestion or createScale are called, so only createTest
+        // needs to be stubbed.
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+
+        // Q1 referenced by LIKERT_VALUE (→SCALE) and ANSWER_KEY_SINGLE (→CHOICE_SINGLE) — conflict
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(new ParsedQuestion("Q1", "Stmt", "بيان",
+                        List.of(new ParsedOption("A", "أ", 1, 0),
+                                new ParsedOption("B", "ب", 2, 1)))),
+                List.of(
+                        new ScoringSheetScale("S1", null, ScoreMethod.SUM, NormStrategyType.EMPIRICAL_PERCENTILE,
+                                null, null, null, null, null, null, null, null, List.of(), null, false),
+                        new ScoringSheetScale("S2", null, ScoreMethod.SUM, NormStrategyType.EMPIRICAL_PERCENTILE,
+                                null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(
+                        new ScoringSheetItem("Q1", "S1", ScoreDirection.FORWARD,
+                                ItemStrategyType.LIKERT_VALUE, 1.0, null),
+                        new ScoringSheetItem("Q1", "S2", ScoreDirection.FORWARD,
+                                ItemStrategyType.ANSWER_KEY_SINGLE, 1.0, null)),
+                List.of());
+
+        assertThatThrownBy(() -> importer.importPackage(
+                new ImportPackageRequest("X", null, TestType.PERSONALITY, null), pkg, UUID.randomUUID()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Conflicting question types");
+    }
+
+    @Test
+    void sameStrategyMultipleItems_allowedNoConflict() {
+        // VIP-style: same question referenced by multiple OPTION_TAGGED_TALLY items (different scales)
+        UUID testId = UUID.randomUUID();
+        UUID qId = UUID.randomUUID();
+        UUID scaleId1 = UUID.randomUUID();
+        UUID scaleId2 = UUID.randomUUID();
+
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        when(admin.addQuestion(eq(testId), any(), any()))
+                .thenReturn(questionDto(qId, UUID.randomUUID(), UUID.randomUUID()));
+        when(admin.createScale(eq(testId), any(), any()))
+                .thenReturn(scaleDto(scaleId1, "S1"))
+                .thenReturn(scaleDto(scaleId2, "S2"));
+
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(new ParsedQuestion("Q1", "Stmt", "بيان",
+                        List.of(new ParsedOption("A", "أ", 1, 0),
+                                new ParsedOption("B", "ب", 2, 1)))),
+                List.of(
+                        new ScoringSheetScale("S1", null, ScoreMethod.SUM, NormStrategyType.EMPIRICAL_PERCENTILE,
+                                null, null, null, null, null, null, null, null, List.of(), null, false),
+                        new ScoringSheetScale("S2", null, ScoreMethod.SUM, NormStrategyType.EMPIRICAL_PERCENTILE,
+                                null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(
+                        new ScoringSheetItem("Q1", "S1", ScoreDirection.FORWARD,
+                                ItemStrategyType.OPTION_TAGGED_TALLY, 1.0, null),
+                        new ScoringSheetItem("Q1", "S2", ScoreDirection.FORWARD,
+                                ItemStrategyType.OPTION_TAGGED_TALLY, 1.0, null)),
+                List.of());
+
+        // Should not throw
+        ImportResultDto res = importer.importPackage(
+                new ImportPackageRequest("VIP", null, TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+        assertThat(res.success()).isTrue();
+        assertThat(res.items()).isEqualTo(2);
+    }
+
+    @Test
     void unknownScaleReference_throwsAndRollsBack() {
         UUID testId = UUID.randomUUID();
         UUID qId = UUID.randomUUID();
 
         when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        // Single-option mock matches the single parsed option (displayOrder=0)
         when(admin.addQuestion(eq(testId), any(), any()))
-                .thenReturn(questionDto(qId, UUID.randomUUID(), UUID.randomUUID()));
+                .thenReturn(questionDtoSingleOpt(qId, UUID.randomUUID()));
         when(admin.createScale(eq(testId), any(), any()))
                 .thenReturn(scaleDto(UUID.randomUUID(), "Agility"));
 

@@ -204,6 +204,10 @@ public class AssessmentPackageParser {
             String scaleName = row.getOrDefault("scaleName", "").trim();
             ScoreDirection direction = parseEnum(ScoreDirection.class, row, "direction",
                     rowLabel, "scoring_sheet.csv", errors);
+            if (direction == null && row.getOrDefault("direction", "").trim().isBlank()) {
+                errors.add(new ImportError("scoring_sheet.csv", rowLabel, "direction",
+                        "direction is required for item rows (FORWARD or REVERSE)"));
+            }
             ItemStrategyType itemStrategy = parseEnum(ItemStrategyType.class, row, "itemStrategy",
                     rowLabel, "scoring_sheet.csv", errors);
             double weight = 1.0;
@@ -246,15 +250,18 @@ public class AssessmentPackageParser {
                 if ("header".equalsIgnoreCase(colName)) continue;
                 String cell = entry.getValue().trim();
                 if (cell.isBlank()) continue;
-                // Only emit entry if the column is a known question header
-                if (questionHeaders.contains(colName)) {
-                    try {
-                        int correctValue = Integer.parseInt(cell);
-                        out.add(new AnswerKeyEntry(colName, correctValue));
-                    } catch (NumberFormatException e) {
-                        errors.add(new ImportError("answer_key.csv", "ANS", colName,
-                                "non-numeric answer value '" + cell + "' for question '" + colName + "'"));
-                    }
+                if (!questionHeaders.contains(colName)) {
+                    // Column is not a known question header — report error but keep parsing others
+                    errors.add(new ImportError("answer_key.csv", "ANS", colName,
+                            "answer key references unknown question '" + colName + "'"));
+                    continue;
+                }
+                try {
+                    int correctValue = Integer.parseInt(cell);
+                    out.add(new AnswerKeyEntry(colName, correctValue));
+                } catch (NumberFormatException e) {
+                    errors.add(new ImportError("answer_key.csv", "ANS", colName,
+                            "non-numeric answer value '" + cell + "' for question '" + colName + "'"));
                 }
             }
         }
