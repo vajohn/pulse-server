@@ -82,6 +82,8 @@ public class ScoringService {
     private final CompetencyScoreRepository competencyScoreRepository;
     private final UserItemExposureRepository userItemExposureRepository;
     private final ScaleProgressRepository scaleProgressRepository;
+    private final CapabilityScoreHistoryRepository capabilityScoreHistoryRepository;
+    private final CapabilityProfileCurrentRepository capabilityProfileCurrentRepository;
 
     /**
      * Entry point called from {@link com.edge.pulse.services.SessionService} after
@@ -376,8 +378,81 @@ public class ScoringService {
         // ── Competency scoring ───────────────────────────────────────────────────
         scoreCompetencies(result, savedScaleScores);
 
+        // ── Longitudinal capability history (Phase 4, §12) ────────────────────────
+        recordCapabilityHistory(result, savedScaleScores, items);
+
         log.info("ScoringService: scored session {} for test {} — {} scale scores",
                 session.getId(), test.getId(), savedScaleScores.size());
+    }
+
+    /**
+     * Appends a {@link CapabilityScoreHistory} row and upserts {@link CapabilityProfileCurrent}
+     * for every eligible leaf scale score (§12). Eligibility (D3/D4):
+     * FINAL result, validity != INVALID, scale not restricted, scale is a leaf (owns scoring-key
+     * items), sten present, a real (non-anonymous) user, and no existing history row for the
+     * (scale, result) pair (idempotent re-score guard). Append-only — never re-scores prior rows.
+     */
+    private void recordCapabilityHistory(TestResult result, List<ScaleScore> scaleScores,
+                                         List<ScoringKeyItem> items) {
+        if (result.getResultState() != ResultState.FINAL) return;          // D3 — PROVISIONAL excluded
+        if (result.getValidityStatus() == ValidityStatus.INVALID) return;  // D4
+        UUID userId = (result.getSession() != null && result.getSession().getUser() != null)
+                ? result.getSession().getUser().getId() : null;
+        if (userId == null) return;                                        // anonymous — no per-user profile
+
+        // Scales that own scoring-key items = leaf scales (composites derive from children).
+        Set<UUID> leafScaleIds = items.stream()
+                .map(i -> i.getScale().getId())
+                .collect(Collectors.toSet());
+
+        UUID normVersionId = result.getNormTableVersion() != null
+                ? result.getNormTableVersion().getId() : null;
+        LocalDateTime scoredAt = result.getScoredAt();
+
+        for (ScaleScore ss : scaleScores) {
+            PsychometricScale scale = ss.getScale();
+            if (scale == null || scale.isRestricted()) continue;          // D3
+            if (!leafScaleIds.contains(scale.getId())) continue;          // leaf only
+            if (ss.getStenScore() == null) continue;                      // skip un-normed
+            if (capabilityScoreHistoryRepository
+                    .existsByScaleIdAndResultId(scale.getId(), result.getId())) continue;
+
+            capabilityScoreHistoryRepository.save(CapabilityScoreHistory.builder()
+                    .userId(userId).scaleId(scale.getId())
+                    .testId(result.getTest().getId()).resultId(result.getId())
+                    .zScore(ss.getZScore()).tScore(ss.getTScore())
+                    .stenScore(ss.getStenScore()).percentile(ss.getPercentile())
+                    .normTableVersionId(normVersionId).scoredAt(scoredAt)
+                    .build());
+
+            Optional<CapabilityProfileCurrent> existing =
+                    capabilityProfileCurrentRepository.findByUserIdAndScaleId(userId, scale.getId());
+
+            CapabilityProfileCurrent.CapabilityProfileCurrentBuilder b = CapabilityProfileCurrent.builder()
+                    .userId(userId).scaleId(scale.getId())
+                    .testId(result.getTest().getId()).latestResultId(result.getId())
+                    .zScore(ss.getZScore()).tScore(ss.getTScore())
+                    .stenScore(ss.getStenScore()).percentile(ss.getPercentile())
+                    .normTableVersionId(normVersionId).scoredAt(scoredAt)
+                    .updatedAt(LocalDateTime.now());
+
+            if (existing.isPresent()) {
+                CapabilityProfileCurrent prev = existing.get();
+                BigDecimal delta = (prev.getStenScore() != null)
+                        ? ss.getStenScore().subtract(prev.getStenScore()) : null;
+                boolean normChanged = !Objects.equals(normVersionId, prev.getNormTableVersionId());
+                b.prevStenScore(prev.getStenScore())
+                 .prevScoredAt(prev.getScoredAt())
+                 .prevNormVersionId(prev.getNormTableVersionId())
+                 .stenDelta(delta)
+                 .normChanged(normChanged)
+                 .nAdministrations(prev.getNAdministrations() + 1);
+            } else {
+                b.prevStenScore(null).prevScoredAt(null).prevNormVersionId(null)
+                 .stenDelta(null).normChanged(false).nAdministrations(1);
+            }
+            capabilityProfileCurrentRepository.save(b.build());
+        }
     }
 
     /**
