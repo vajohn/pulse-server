@@ -95,40 +95,61 @@ public class AdminAssessmentImportController {
         return ResponseEntity.ok(result);
     }
 
-    private static final int MAX_ENTRY_BYTES = 5 * 1024 * 1024; // per-image 5 MB guard (§10)
+    private static final int MAX_ENTRY_BYTES  = 5 * 1024 * 1024;   // per-image 5 MB guard (§10)
+    private static final long MAX_TOTAL_BYTES  = 100L * 1024 * 1024; // aggregate 100 MB cap
+    private static final int  MAX_ENTRY_COUNT  = 500;                 // aggregate entry-count cap
 
     /**
      * Unzips an uploaded image set into a {@code filename -> bytes} map. Skips directories; accepts
-     * only {@code .png}/{@code .jpg}/{@code .jpeg}; caps each entry at 5 MB. The map key is the
-     * entry's base filename (no path) — it is matched against markdown alt-text in the importer.
+     * only {@code .png}/{@code .jpg}/{@code .jpeg}; caps each entry at 5 MB. Caps total extracted
+     * bytes at 100 MB and total entries at 500. The map key is the entry's base filename (no path)
+     * — it is matched against markdown alt-text in the importer.
      */
     private Map<String, byte[]> unzipImages(MultipartFile images) throws Exception {
         Map<String, byte[]> out = new HashMap<>();
+        long totalBytes = 0;
+        int entryCount = 0;
         try (ZipInputStream zis = new ZipInputStream(images.getInputStream())) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                if (entry.isDirectory()) continue;
+                entryCount++;
+                if (entryCount > MAX_ENTRY_COUNT) {
+                    zis.closeEntry();
+                    throw new IllegalArgumentException("image archive too large");
+                }
+                if (entry.isDirectory()) {
+                    zis.closeEntry();
+                    continue;
+                }
                 String name = entry.getName();
                 int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
                 String base = slash >= 0 ? name.substring(slash + 1) : name;
                 String lower = base.toLowerCase(Locale.ROOT);
                 if (!(lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg"))) {
+                    zis.closeEntry();
                     continue;
                 }
                 ByteArrayOutputStream buf = new ByteArrayOutputStream();
                 byte[] chunk = new byte[8192];
                 int read;
-                int total = 0;
+                int entryTotal = 0;
                 while ((read = zis.read(chunk)) != -1) {
-                    total += read;
-                    if (total > MAX_ENTRY_BYTES) {
+                    entryTotal += read;
+                    if (entryTotal > MAX_ENTRY_BYTES) {
+                        zis.closeEntry();
                         throw new IllegalArgumentException("Image " + base + " exceeds " + MAX_ENTRY_BYTES + " bytes");
                     }
                     buf.write(chunk, 0, read);
                 }
+                totalBytes += entryTotal;
+                if (totalBytes > MAX_TOTAL_BYTES) {
+                    zis.closeEntry();
+                    throw new IllegalArgumentException("image archive too large");
+                }
                 if (buf.size() > 0) {
                     out.put(base, buf.toByteArray());
                 }
+                zis.closeEntry();
             }
         }
         return out;

@@ -242,7 +242,10 @@ public class AssessmentImporter {
                 throw new IllegalArgumentException("Image not found for ref: " + ref.alt());
             }
             String locale = ref.alt().toLowerCase().replaceAll("[^a-z0-9]", "").contains("ara") ? "ar" : "en";
-            var asset = assetService.store(bytes, "image/png", ref.alt(), locale);
+            String altLower = ref.alt().toLowerCase(java.util.Locale.ROOT);
+            String contentType = (altLower.endsWith(".jpg") || altLower.endsWith(".jpeg"))
+                    ? "image/jpeg" : "image/png";
+            var asset = assetService.store(bytes, contentType, ref.alt(), locale);
             out = MarkdownImageRefs.rewrite(out, ref.url(), "/api/psychometric/assets/" + asset.getId());
         }
         return out;
