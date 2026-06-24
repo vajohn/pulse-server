@@ -625,4 +625,94 @@ class ScoringServiceTest {
                 .itemStrategy(ItemStrategyType.BINARY_FORCED_CHOICE)
                 .build();
     }
+
+    // ── OPTION_TAGGED_TALLY (VIP) JPA path (I2) ──────────────────────────────
+
+    /**
+     * Verifies that {@code buildResponse} resolves {@code selectedTagScaleId} from
+     * {@code CandidateAnswer.tagScale} for OPTION_TAGGED_TALLY items, routing the
+     * tally point to the matched scale and leaving the other scale with rawScore=0.
+     *
+     * <p>Setup: one question with two scoring-key items — {@code (Q, scaleR, OPTION_TAGGED_TALLY)}
+     * and {@code (Q, scaleI, OPTION_TAGGED_TALLY)}; candidate selects option A which is
+     * tagged to scaleR.
+     *
+     * <p>Expected:
+     * <ul>
+     *   <li>scaleR: rawScore=1.000, itemsAnswered=1 (tag matches)</li>
+     *   <li>scaleI: rawScore=0.000, itemsAnswered=0 (tag does not match → NaN → zero)</li>
+     * </ul>
+     */
+    @Test
+    void scoreSession_optionTaggedTally_routesPointToSelectedTagScale() {
+        // Two scales: scaleR (Realistic) and scaleI (Investigative)
+        PsychometricScale scaleR = PsychometricScale.builder()
+                .id(UUID.randomUUID()).test(psychTest).name("Realistic")
+                .scoreMethod(ScoreMethod.SUM).build();
+        PsychometricScale scaleI = PsychometricScale.builder()
+                .id(UUID.randomUUID()).test(psychTest).name("Investigative")
+                .scoreMethod(ScoreMethod.SUM).build();
+
+        // One question shared by both items
+        Question vipQuestion = Question.builder()
+                .id(questionId).questionType(QuestionType.CHOICE_SINGLE).build();
+
+        // Two scoring-key items for the same question, one per scale
+        ScoringKeyItem itemR = ScoringKeyItem.builder()
+                .id(UUID.randomUUID()).scale(scaleR).question(vipQuestion)
+                .direction(ScoreDirection.FORWARD).weight(BigDecimal.ONE)
+                .itemStrategy(ItemStrategyType.OPTION_TAGGED_TALLY).build();
+        ScoringKeyItem itemI = ScoringKeyItem.builder()
+                .id(UUID.randomUUID()).scale(scaleI).question(vipQuestion)
+                .direction(ScoreDirection.FORWARD).weight(BigDecimal.ONE)
+                .itemStrategy(ItemStrategyType.OPTION_TAGGED_TALLY).build();
+
+        // Candidate selects option A, which is tagged to scaleR
+        CandidateAnswer optionA = CandidateAnswer.builder()
+                .id(UUID.randomUUID()).displayOrder(0).tagScale(scaleR).build();
+        AnswerSubmission submission = AnswerSubmission.builder()
+                .id(UUID.randomUUID()).question(vipQuestion).build();
+        AnswerChoice selectedChoice = AnswerChoice.builder()
+                .id(UUID.randomUUID()).submission(submission).candidateAnswer(optionA).build();
+
+        // Wire mocks (manual setup — two scales, one choice)
+        when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
+        when(testResultRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(scoringKeyVersionRepository.findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE))
+                .thenReturn(Optional.of(activeKey));
+        when(scoringKeyItemRepository.findByScoringKeyIdWithDetails(activeKey.getId()))
+                .thenReturn(List.of(itemR, itemI));
+        when(answerChoiceRepository.findCurrentBySessionId(sessionId))
+                .thenReturn(List.of(selectedChoice));
+        when(answerScaleRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(scaleR, scaleI));
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.empty());
+        TestResult savedResult = TestResult.builder().id(UUID.randomUUID())
+                .status(TestResultStatus.SCORED).scoringKeyVersion(activeKey).build();
+        when(testResultRepository.save(any())).thenReturn(savedResult);
+        lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
+        when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        scoringService.scoreSession(session);
+
+        ArgumentCaptor<ScaleScore> captor = ArgumentCaptor.forClass(ScaleScore.class);
+        verify(scaleScoreRepository, atLeastOnce()).save(captor.capture());
+        List<ScaleScore> saved = captor.getAllValues();
+
+        ScaleScore ssR = saved.stream()
+                .filter(s -> s.getScale().getId().equals(scaleR.getId())).findFirst().orElseThrow();
+        ScaleScore ssI = saved.stream()
+                .filter(s -> s.getScale().getId().equals(scaleI.getId())).findFirst().orElseThrow();
+
+        // scaleR: tag matches → point credited → rawScore=1.000, itemsAnswered=1
+        assertThat(ssR.getRawScore()).isEqualByComparingTo(new BigDecimal("1.000"));
+        assertThat(ssR.getItemsAnswered()).isEqualTo(1);
+
+        // scaleI: tag does not match → NaN → itemsAnswered=0, rawScore=0.000
+        assertThat(ssI.getRawScore()).isEqualByComparingTo(new BigDecimal("0.000"));
+        assertThat(ssI.getItemsAnswered()).isEqualTo(0);
+    }
 }

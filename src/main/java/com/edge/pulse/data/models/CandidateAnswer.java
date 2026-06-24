@@ -14,7 +14,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"question"})
+@ToString(exclude = {"question", "tagScale"})
 public class CandidateAnswer {
 
     @Id

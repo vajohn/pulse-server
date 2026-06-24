@@ -13,6 +13,7 @@ import com.edge.pulse.data.enums.ValidityStatus;
 import com.edge.pulse.data.models.AnswerAdjective;
 import com.edge.pulse.data.models.AnswerChoice;
 import com.edge.pulse.data.models.AnswerScale;
+import com.edge.pulse.data.models.CandidateAnswer;
 import com.edge.pulse.data.models.ResponseSession;
 import com.edge.pulse.data.models.psychometric.*;
 import com.edge.pulse.repositories.answer.AnswerAdjectiveRepository;
@@ -366,10 +367,13 @@ public class ScoringService {
                         adjectiveAnswer.getSelected().size());
             }
             case OPTION_TAGGED_TALLY -> {
-                // VIP — not in the Phase-1 parity set. No option→scale tag mapping is
-                // available yet, so emit a non-crashing "answered but untagged" response.
+                // VIP: resolve the tag-scale from the selected option's CandidateAnswer.tagScale.
+                // CandidateAnswer is managed within the scoring transaction, so proxy init is safe.
                 if (choiceAnswers.isEmpty()) yield null;
-                yield new ItemResponse(questionId, null, null, null, null, null, null);
+                CandidateAnswer selected = choiceAnswers.get(0).getCandidateAnswer();
+                UUID tagScaleId = (selected.getTagScale() != null)
+                        ? selected.getTagScale().getId() : null;
+                yield new ItemResponse(questionId, null, null, null, null, tagScaleId, null);
             }
         };
     }
