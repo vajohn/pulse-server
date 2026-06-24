@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -65,5 +66,27 @@ public interface AnswerChoiceRepository extends JpaRepository<AnswerChoice, UUID
           AND sub.isCurrent = true
     """)
     List<AnswerChoice> findCurrentBySessionId(@Param("sessionId") UUID sessionId);
+
+    /**
+     * CONSOLIDATED accrual (Phase 3, Fix B): the user's CURRENT choice answers for a set of question
+     * ids across ALL their completed sessions on a form since the consolidation window opened.
+     */
+    @Query("""
+        SELECT ac FROM AnswerChoice ac
+        JOIN FETCH ac.candidateAnswer
+        JOIN FETCH ac.submission sub
+        JOIN FETCH sub.question q
+        JOIN sub.session rs
+        WHERE rs.user.id = :userId
+          AND q.form.id = :formId
+          AND sub.isCurrent = true
+          AND rs.completedAt IS NOT NULL
+          AND rs.completedAt >= :since
+          AND q.id IN :questionIds
+    """)
+    List<AnswerChoice> findCurrentForUserFormQuestionsSince(@Param("userId") UUID userId,
+                                                            @Param("formId") UUID formId,
+                                                            @Param("questionIds") Collection<UUID> questionIds,
+                                                            @Param("since") LocalDateTime since);
 
 }

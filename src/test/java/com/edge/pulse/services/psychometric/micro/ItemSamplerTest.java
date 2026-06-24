@@ -37,6 +37,35 @@ class ItemSamplerTest {
     }
 
     @Test
+    void neverReDeliversSeenItems_evenWhenMaxItemsExceedsUnseenCount() {
+        // Fix C: padding with already-seen items is forbidden. With 2 unseen and 3 seen items
+        // and maxItems=5, the sampler must return ONLY the 2 unseen ids (≤ unseen-count), never
+        // padding up to 5 with seen items.
+        UUID sc = id("scale-a");
+        List<SamplerItem> items = List.of(
+                new SamplerItem(id("seen1"), sc, true),
+                new SamplerItem(id("seen2"), sc, true),
+                new SamplerItem(id("seen3"), sc, true),
+                new SamplerItem(id("unseen1"), sc, false),
+                new SamplerItem(id("unseen2"), sc, false));
+        var out = sampler.next(new SamplerInput(items, List.of(new SamplerScale(sc, 10, 0)), 5, 42L));
+        assertThat(out).containsExactlyInAnyOrder(id("unseen1"), id("unseen2"));
+        assertThat(out).doesNotContain(id("seen1"), id("seen2"), id("seen3"));
+        assertThat(out.size()).isLessThanOrEqualTo(2); // ≤ unseen-count, never padded to maxItems
+    }
+
+    @Test
+    void returnsEmptyWhenAllEligibleItemsAreSeen() {
+        // Fix C: an open scale with only seen items left yields nothing (no re-delivery).
+        UUID sc = id("scale-a");
+        List<SamplerItem> items = List.of(
+                new SamplerItem(id("seen1"), sc, true),
+                new SamplerItem(id("seen2"), sc, true));
+        var out = sampler.next(new SamplerInput(items, List.of(new SamplerScale(sc, 10, 1)), 5, 42L));
+        assertThat(out).isEmpty();
+    }
+
+    @Test
     void prefersScaleNearestCompletionWhenUnseenAcrossScales() {
         UUID near = id("near");   // needs 1 more
         UUID far  = id("far");    // needs 8 more

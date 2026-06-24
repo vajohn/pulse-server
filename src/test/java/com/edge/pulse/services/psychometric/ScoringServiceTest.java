@@ -185,20 +185,16 @@ class ScoringServiceTest {
     }
 
     @Test
-    void scoreSession_notAnsweredItem_countedInTotalButNotAnswered() {
+    void scoreSession_scaleWithZeroItemsAnswered_isNotScored() {
+        // Fix A: a scale whose item(s) were not answered in the scored answer set must NOT be
+        // scored — no spurious raw=0 / STEN~1 / items_answered=0 ScaleScore is persisted.
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
 
         setupFullScoreScenario(List.of(item), Map.of(), Map.of()); // no answers provided
 
         scoringService.scoreSession(session);
 
-        ArgumentCaptor<ScaleScore> captor = ArgumentCaptor.forClass(ScaleScore.class);
-        verify(scaleScoreRepository, atLeastOnce()).save(captor.capture());
-        ScaleScore ss = captor.getAllValues().stream()
-                .filter(s -> s.getScale().getId().equals(scaleId)).findFirst().orElseThrow();
-        assertThat(ss.getItemsAnswered()).isEqualTo(0);
-        assertThat(ss.getItemsTotal()).isEqualTo(1);
-        assertThat(ss.getRawScore()).isEqualByComparingTo(BigDecimal.ZERO.setScale(3));
+        verify(scaleScoreRepository, never()).save(argThat(ss -> ss.getScale().getId().equals(scaleId)));
     }
 
     @Test
@@ -505,7 +501,9 @@ class ScoringServiceTest {
         // Default: no competency weights — lenient because tests without a norm table
         // have null sten scores → scoreCompetencies() exits early → this stub is unused
         lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
-        when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // lenient: a Fix-A scenario (scale with zero answered items) persists no ScaleScore,
+        // so this stub may go unused depending on the test.
+        lenient().when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     private ScoringKeyItem buildScaleItem(ScoreDirection direction, BigDecimal weight,

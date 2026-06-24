@@ -192,6 +192,13 @@ class ScoringServiceConsolidationTest {
         // This session answers the 4th item only (qB4)
         when(answerScaleRepository.findCurrentBySessionId(sessionId))
                 .thenReturn(List.of(answer(qB4, 3)));
+        // Fix B: on release, the scale is scored from ALL 4 accrued answers across the window.
+        when(answerScaleRepository.findCurrentForUserFormQuestionsSince(eq(userId), eq(formId), any(), any()))
+                .thenReturn(List.of(answer(qB1, 4), answer(qB2, 3), answer(qB3, 5), answer(qB4, 3)));
+        lenient().when(answerChoiceRepository.findCurrentForUserFormQuestionsSince(eq(userId), eq(formId), any(), any()))
+                .thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentForUserFormQuestionsSince(eq(userId), eq(formId), any(), any()))
+                .thenReturn(List.of());
         when(answerChoiceRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
         lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
         lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
@@ -227,6 +234,9 @@ class ScoringServiceConsolidationTest {
         ScaleScore bScore = ssCap.getAllValues().stream()
                 .filter(ss -> ss.getScale().getId().equals(scaleBId)).findFirst().orElseThrow();
         assertThat(bScore.getStenScore()).isNotNull();
+        // Fix B: scored from the FULL accrued set — all 4 items answered, not just the releasing 1.
+        assertThat(bScore.getItemsAnswered()).isEqualTo(4);
+        assertThat(bScore.getItemsTotal()).isEqualTo(4);
 
         // The pinned norm was loaded; the live norm was never consulted for B's params
         verify(normTableVersionRepository).findById(norm.getId());
@@ -245,6 +255,132 @@ class ScoringServiceConsolidationTest {
         assertThat(consolidated.getItemsCollected()).isGreaterThanOrEqualTo(4);
 
         // Result is FINAL (no scale left collecting)
+        ArgumentCaptor<TestResult> trCap = ArgumentCaptor.forClass(TestResult.class);
+        verify(testResultRepository, atLeast(1)).save(trCap.capture());
+        assertThat(trCap.getAllValues().get(0).getResultState()).isEqualTo(ResultState.FINAL);
+    }
+
+    /**
+     * Fix A — an IMMEDIATE scale whose item is NOT delivered in this check-in session must NOT
+     * produce a scale_score (no spurious raw=0 / STEN~1 / items_answered=0). Scale A (IMMEDIATE)
+     * owns qA but this session answers only qB1; A must be absent from the persisted scale scores.
+     */
+    @Test
+    void immediateScale_withNoItemAnsweredThisSession_isNotScored() {
+        ScoringKeyItem iA = item(UUID.randomUUID(), scaleA, qA);          // IMMEDIATE, NOT answered
+        ScoringKeyItem iB1 = item(UUID.randomUUID(), scaleB, qB1);
+        ScoringKeyItem iB2 = item(UUID.randomUUID(), scaleB, qB2);
+        ScoringKeyItem iB3 = item(UUID.randomUUID(), scaleB, qB3);
+        ScoringKeyItem iB4 = item(UUID.randomUUID(), scaleB, qB4);
+
+        when(testRepository.findByFormId(formId)).thenReturn(Optional.of(psychTest));
+        when(testResultRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(scoringKeyVersionRepository.findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE))
+                .thenReturn(Optional.of(activeKey));
+        when(scoringKeyItemRepository.findByScoringKeyIdWithDetails(activeKey.getId()))
+                .thenReturn(List.of(iA, iB1, iB2, iB3, iB4));
+        // Only one of B's items answered — A's item (qA) is absent from this session.
+        when(answerScaleRepository.findCurrentBySessionId(sessionId))
+                .thenReturn(List.of(answer(qB1, 4)));
+        when(answerChoiceRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(scaleA, scaleB));
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.of(norm));
+        when(scaleProgressRepository.findByUserIdAndTestId(userId, testId)).thenReturn(List.of());
+        when(scaleProgressRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // A's norm would let it score IF it had any answer — it must still be skipped.
+        lenient().when(normScaleParamRepository.findByNormTable_IdAndScale_Id(any(), eq(scaleAId)))
+                .thenReturn(Optional.of(NormScaleParam.builder().normTable(norm).scale(scaleA)
+                        .mean(new BigDecimal("3")).sd(new BigDecimal("1"))
+                        .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                        .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build()));
+
+        TestResult saved = TestResult.builder().id(UUID.randomUUID())
+                .status(TestResultStatus.SCORED).scoringKeyVersion(activeKey).build();
+        when(testResultRepository.save(any())).thenReturn(saved);
+        lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
+        lenient().when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        scoringService.scoreSession(session);
+
+        // A produced NO scale score; B (still collecting) produced none either.
+        verify(scaleScoreRepository, never()).save(argThat(ss -> ss.getScale().getId().equals(scaleAId)));
+    }
+
+    /**
+     * Fix B (e2e mirror) — a CONSOLIDATED scale of 4 items answered across TWO sessions (3 then 1).
+     * On the SECOND completion the scale_score reflects ALL 4 accrued answers (items_answered==4),
+     * scored against the PINNED norm, FINAL.
+     */
+    @Test
+    void consolidatedScale_answeredAcrossTwoSessions_scoresAllFourAccruedAnswers() {
+        ScoringKeyItem iB1 = item(UUID.randomUUID(), scaleB, qB1);
+        ScoringKeyItem iB2 = item(UUID.randomUUID(), scaleB, qB2);
+        ScoringKeyItem iB3 = item(UUID.randomUUID(), scaleB, qB3);
+        ScoringKeyItem iB4 = item(UUID.randomUUID(), scaleB, qB4);
+
+        // After session 1 (qB1,qB2,qB3) there is an open window with 3/4 collected, norm pinned.
+        UUID windowId = UUID.randomUUID();
+        ScaleProgress existing = ScaleProgress.builder()
+                .id(UUID.randomUUID()).userId(userId).scaleId(scaleBId).testId(testId)
+                .windowId(windowId).normTableVersionId(norm.getId())
+                .openedAt(java.time.LocalDateTime.of(2026, 1, 1, 0, 0))
+                .itemsRequired(4).itemsCollected(3).state(ScaleProgressState.COLLECTING).build();
+
+        when(testRepository.findByFormId(formId)).thenReturn(Optional.of(psychTest));
+        when(testResultRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(scoringKeyVersionRepository.findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE))
+                .thenReturn(Optional.of(activeKey));
+        when(scoringKeyItemRepository.findByScoringKeyIdWithDetails(activeKey.getId()))
+                .thenReturn(List.of(iB1, iB2, iB3, iB4));
+        // SESSION 2 answers only the 4th item.
+        when(answerScaleRepository.findCurrentBySessionId(sessionId))
+                .thenReturn(List.of(answer(qB4, 2)));
+        // The accrued window query returns the user's CURRENT answers for all 4 items across
+        // BOTH sessions (qB1..qB3 from session 1, qB4 from session 2).
+        when(answerScaleRepository.findCurrentForUserFormQuestionsSince(eq(userId), eq(formId), any(), any()))
+                .thenReturn(List.of(answer(qB1, 5), answer(qB2, 4), answer(qB3, 5), answer(qB4, 2)));
+        lenient().when(answerChoiceRepository.findCurrentForUserFormQuestionsSince(eq(userId), eq(formId), any(), any()))
+                .thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentForUserFormQuestionsSince(eq(userId), eq(formId), any(), any()))
+                .thenReturn(List.of());
+        when(answerChoiceRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(scaleB));
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.of(norm));
+        when(scaleProgressRepository.findByUserIdAndTestId(userId, testId))
+                .thenReturn(new ArrayList<>(List.of(existing)));
+        when(scaleProgressRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(normTableVersionRepository.findById(norm.getId())).thenReturn(Optional.of(norm));
+        when(normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), scaleBId))
+                .thenReturn(Optional.of(NormScaleParam.builder().normTable(norm).scale(scaleB)
+                        .mean(new BigDecimal("8")).sd(new BigDecimal("2"))
+                        .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                        .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build()));
+
+        TestResult saved = TestResult.builder().id(UUID.randomUUID())
+                .status(TestResultStatus.SCORED).scoringKeyVersion(activeKey).build();
+        when(testResultRepository.save(any())).thenReturn(saved);
+        lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
+        when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        scoringService.scoreSession(session);
+
+        ArgumentCaptor<ScaleScore> ssCap = ArgumentCaptor.forClass(ScaleScore.class);
+        verify(scaleScoreRepository, atLeastOnce()).save(ssCap.capture());
+        ScaleScore bScore = ssCap.getAllValues().stream()
+                .filter(ss -> ss.getScale().getId().equals(scaleBId)).findFirst().orElseThrow();
+        // All 4 accrued answers scored; raw = 5+4+5+2 = 16 (SUM); STEN from the PINNED norm.
+        assertThat(bScore.getItemsAnswered()).isEqualTo(4);
+        assertThat(bScore.getItemsTotal()).isEqualTo(4);
+        assertThat(bScore.getRawScore()).isEqualByComparingTo(new BigDecimal("16.000"));
+        assertThat(bScore.getStenScore()).isNotNull();
+        verify(normScaleParamRepository).findByNormTable_IdAndScale_Id(norm.getId(), scaleBId);
+
         ArgumentCaptor<TestResult> trCap = ArgumentCaptor.forClass(TestResult.class);
         verify(testResultRepository, atLeast(1)).save(trCap.capture());
         assertThat(trCap.getAllValues().get(0).getResultState()).isEqualTo(ResultState.FINAL);

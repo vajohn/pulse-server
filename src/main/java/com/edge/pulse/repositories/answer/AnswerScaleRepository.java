@@ -117,6 +117,29 @@ public interface AnswerScaleRepository extends JpaRepository<AnswerScale, UUID> 
     """)
     List<AnswerScale> findCurrentBySessionId(@Param("sessionId") UUID sessionId);
 
+    /**
+     * CONSOLIDATED accrual (Phase 3, Fix B): the user's CURRENT scale answers for a given set of
+     * question ids across ALL their completed sessions on a form, since the consolidation window
+     * opened. Used to score a consolidated scale from the FULL accrued answer set (not just the
+     * releasing session). One row per (question) — current submissions only.
+     */
+    @Query("""
+        SELECT ans FROM AnswerScale ans
+        JOIN FETCH ans.submission sub
+        JOIN FETCH sub.question q
+        JOIN sub.session rs
+        WHERE rs.user.id = :userId
+          AND q.form.id = :formId
+          AND sub.isCurrent = true
+          AND rs.completedAt IS NOT NULL
+          AND rs.completedAt >= :since
+          AND q.id IN :questionIds
+    """)
+    List<AnswerScale> findCurrentForUserFormQuestionsSince(@Param("userId") UUID userId,
+                                                           @Param("formId") UUID formId,
+                                                           @Param("questionIds") Collection<UUID> questionIds,
+                                                           @Param("since") LocalDateTime since);
+
     // -----------------------------------------------------------------------
     // Dashboard analytics: optional path-scope and date-range filtering.
     // Pass pathFilter as "<prefix>" (no trailing %) or null; pass since as a LocalDateTime.

@@ -10,14 +10,15 @@ import java.util.*;
 /**
  * Pure, deterministic item sampler for micro-engagement (D5).
  *
- * <p>Draws ≤{@code maxItems} question ids for the next micro-set, ordering by:
+ * <p>Draws ≤{@code maxItems} question ids for the next micro-set from the UNSEEN pool only —
+ * an already-seen item is NEVER re-delivered (no padding). Among unseen items, ordering is:
  * <ol>
- *   <li>UNSEEN before SEEN (avoid repeats / maximise coverage);</li>
  *   <li>scale nearest completion first (smallest remaining items_required − items_collected);</li>
  *   <li>a seeded shuffle within the same priority bucket so ties are stable per seed.</li>
  * </ol>
- * Completed scales (remaining == 0) contribute nothing. No JPA / Spring state — fully
- * unit-testable; annotated {@link Component} only so it can be injected as a stateless bean.
+ * If fewer than {@code maxItems} unseen items remain, fewer are returned. Completed scales
+ * (remaining == 0) contribute nothing. No JPA / Spring state — fully unit-testable; annotated
+ * {@link Component} only so it can be injected as a stateless bean.
  */
 @Component
 public class ItemSampler {
@@ -28,9 +29,11 @@ public class ItemSampler {
             remainingByScale.put(s.scaleId(), s.remaining());
         }
 
-        // Keep only items whose scale still needs more items.
+        // Keep only UNSEEN items whose scale still needs more items. Seen items are NEVER
+        // re-delivered — we never pad up to maxItems with already-seen ids (Fix C).
         List<SamplerItem> eligible = new ArrayList<>();
         for (SamplerItem item : in.items()) {
+            if (item.seen()) continue;
             int remaining = remainingByScale.getOrDefault(item.scaleId(), 0);
             if (remaining > 0) eligible.add(item);
         }
@@ -39,10 +42,9 @@ public class ItemSampler {
         Random rng = new Random(in.seed());
         Collections.shuffle(eligible, rng);
 
-        // Stable sort by (seen asc, scale-remaining asc). shuffle provides the tie-break order.
+        // Stable sort by scale-remaining asc (nearest completion first); shuffle is the tie-break.
         eligible.sort(Comparator
-                .comparing((SamplerItem i) -> i.seen())                                   // false (unseen) first
-                .thenComparingInt(i -> remainingByScale.getOrDefault(i.scaleId(), 0)));    // nearest completion first
+                .comparingInt((SamplerItem i) -> remainingByScale.getOrDefault(i.scaleId(), 0)));
 
         int n = Math.max(0, Math.min(in.maxItems(), eligible.size()));
         List<UUID> picked = new ArrayList<>(n);

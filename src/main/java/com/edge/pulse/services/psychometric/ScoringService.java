@@ -202,6 +202,32 @@ public class ScoringService {
         Map<UUID, ScaleProgress> progressByScale =
                 accrueExposureAndProgress(session, test, items, responsesByQuestion, normOpt, allScales);
 
+        // ── CONSOLIDATED scoring from the FULL accrued window (Phase 3, Fix B / §11) ──────────
+        // A releasing CONSOLIDATED scale must be scored from EVERY answer accrued across the
+        // window — not just the answers in the session that completed it. Gather the user's
+        // current answers for that scale's question ids across their completed sessions on this
+        // form since the window opened and merge them into responsesByQuestion. The releasing
+        // session's own answers are already present (same current submissions) → merge is idempotent.
+        for (PsychometricScale s : allScales) {
+            if (s.getResultMode() != ResultMode.CONSOLIDATED) continue;
+            ScaleProgress p = progressByScale.get(s.getId());
+            boolean releasable = p != null && p.getItemsCollected() >= p.getItemsRequired();
+            if (!releasable) continue;
+            mergeAccruedWindowAnswers(session, formId, s.getId(), items, p, responsesByQuestion);
+        }
+
+        // ── Fix A — per-scale answered count over the (merged) response set ───────────────────
+        // A scale with ZERO answered items in the answers being scored must NOT be scored
+        // (no spurious raw=0 / STEN~1 / items_answered=0). After the Fix-B merge, a releasable
+        // CONSOLIDATED scale has its full accrued set present; an IMMEDIATE scale whose item was
+        // not delivered this session has 0 → it is skipped (no ScaleConfig, no scale_score).
+        Map<UUID, Integer> itemsAnsweredByScale = new HashMap<>();
+        for (ScoringKeyItem item : items) {
+            if (responsesByQuestion.containsKey(item.getQuestion().getId())) {
+                itemsAnsweredByScale.merge(item.getScale().getId(), 1, Integer::sum);
+            }
+        }
+
         List<ScaleConfig> scaleConfigs = new ArrayList<>(allScales.size());
         for (PsychometricScale s : allScales) {
             // ── Consolidation gating (Phase 3, D3/§6.1) ───────────────────────────
@@ -218,6 +244,16 @@ public class ScoringService {
                     p.setConsolidatedAt(LocalDateTime.now());
                     scaleProgressRepository.save(p);
                 }
+            }
+
+            // ── Fix A — skip scales with no item answered in the scored answer set ────────────
+            // Applies to leaf/IMMEDIATE scales (those that own scoring-key items). Composite
+            // parents (AGGREGATE_OF_*) derive their raw from children and own no items, so they
+            // are absent from itemsAnsweredByScale and must not be filtered here.
+            boolean ownsItems = itemsAnsweredByScale.containsKey(s.getId())
+                    || items.stream().anyMatch(i -> i.getScale().getId().equals(s.getId()));
+            if (ownsItems && itemsAnsweredByScale.getOrDefault(s.getId(), 0) == 0) {
+                continue;
             }
 
             CompositeMethod cm = s.getCompositeMethod();
@@ -425,6 +461,59 @@ public class ScoringService {
                 yield new ItemResponse(questionId, null, null, null, null, tagScaleId, null);
             }
         };
+    }
+
+    /**
+     * Fix B (Phase 3, §11): merge the FULL accrued answer set for a releasing CONSOLIDATED scale
+     * into {@code responsesByQuestion} so the calculator scores it from every answer collected
+     * across the window — not just the releasing session.
+     *
+     * <p>Gathers the user's CURRENT answers (is_current) for this scale's scoring-key question ids
+     * across all their completed sessions on this form since the window opened ({@link ScaleProgress#getOpenedAt()}),
+     * across all three psychometric answer types (scale / choice / adjective). Builds an
+     * {@link ItemResponse} for each and writes it into the map (the releasing session's own answers
+     * are the same current submissions → re-building them is idempotent). Anonymous sessions have no
+     * user and never reach here (CONSOLIDATED requires per-user accrual).
+     */
+    private void mergeAccruedWindowAnswers(ResponseSession session, UUID formId, UUID scaleId,
+                                           List<ScoringKeyItem> items, ScaleProgress progress,
+                                           Map<UUID, ItemResponse> responsesByQuestion) {
+        UUID userId = (session.getUser() != null) ? session.getUser().getId() : null;
+        if (userId == null) {
+            return;
+        }
+        // This scale's scoring-key items, indexed by their question id (with resolved strategy).
+        Map<UUID, ScoringKeyItem> scaleItemsByQuestion = items.stream()
+                .filter(i -> i.getScale().getId().equals(scaleId))
+                .collect(Collectors.toMap(i -> i.getQuestion().getId(), i -> i, (a, b) -> a));
+        if (scaleItemsByQuestion.isEmpty()) {
+            return;
+        }
+        Collection<UUID> questionIds = scaleItemsByQuestion.keySet();
+        LocalDateTime since = progress.getOpenedAt() != null
+                ? progress.getOpenedAt() : LocalDateTime.of(2000, 1, 1, 0, 0);
+
+        Map<UUID, AnswerScale> scaleByQ = answerScaleRepository
+                .findCurrentForUserFormQuestionsSince(userId, formId, questionIds, since).stream()
+                .collect(Collectors.toMap(a -> a.getSubmission().getQuestion().getId(), a -> a, (a, b) -> a));
+        Map<UUID, List<AnswerChoice>> choicesByQ = answerChoiceRepository
+                .findCurrentForUserFormQuestionsSince(userId, formId, questionIds, since).stream()
+                .collect(Collectors.groupingBy(ac -> ac.getSubmission().getQuestion().getId()));
+        Map<UUID, AnswerAdjective> adjByQ = answerAdjectiveRepository
+                .findCurrentForUserFormQuestionsSince(userId, formId, questionIds, since).stream()
+                .collect(Collectors.toMap(aa -> aa.getSubmission().getQuestion().getId(), aa -> aa, (a, b) -> a));
+
+        for (Map.Entry<UUID, ScoringKeyItem> e : scaleItemsByQuestion.entrySet()) {
+            UUID qId = e.getKey();
+            ItemStrategyType strategy = resolveStrategy(e.getValue());
+            ItemResponse r = buildResponse(strategy, qId,
+                    scaleByQ.get(qId),
+                    choicesByQ.getOrDefault(qId, List.of()),
+                    adjByQ.get(qId));
+            if (r != null) {
+                responsesByQuestion.put(qId, r);
+            }
+        }
     }
 
     /**
