@@ -32,17 +32,22 @@ final class ParityAsserter {
             Map<String, BigDecimal> expSten = fx.expectedSten.get(user);
             Map<String, BigDecimal> expT = fx.expectedT.get(user);
 
-            for (var e : expSten.entrySet()) {
-                String scale = e.getKey();
+            java.util.Set<String> allScales = new java.util.LinkedHashSet<>(expSten.keySet());
+            allScales.addAll(expT.keySet());
+
+            for (String scale : allScales) {
                 UUID id = scaleId.get(scale);
                 assertThat(id).as("config defines scale %s", scale).isNotNull();
                 ScaleScoreResult r = byId.get(id);
                 assertThat(r).as("engine produced result for %s/%s", user, scale).isNotNull();
 
-                comparisons++;
-                if (r.stenScore() == null || r.stenScore().compareTo(e.getValue()) != 0) {
-                    failures.append(String.format("%s %s STEN: got %s expected %s%n",
-                            user, scale, r.stenScore(), e.getValue()));
+                BigDecimal es = expSten.get(scale);
+                if (es != null) {
+                    comparisons++;
+                    if (r.stenScore() == null || r.stenScore().compareTo(es) != 0) {
+                        failures.append(String.format("%s %s STEN: got %s expected %s%n",
+                                user, scale, r.stenScore(), es));
+                    }
                 }
                 BigDecimal et = expT.get(scale);
                 if (et != null) {

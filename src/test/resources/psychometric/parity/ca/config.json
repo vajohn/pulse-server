@@ -1,0 +1,21 @@
+{
+  "assessment": "CA",
+  "itemStrategy": "ANSWER_KEY_SINGLE",
+  "tFactor": 15, "tOffset": 100, "tClipLo": 40, "tClipHi": 160,
+  "subScales": [
+    { "name": "verbal_reasoning_sum",        "mean": 10.85, "sd": 3.31,
+      "responses": "verbal.csv",    "key": "verbal_key.csv",    "questions": 15, "answerStartCol": 0 },
+    { "name": "numerical_reasoning_sum",     "mean": 11.45, "sd": 2.74,
+      "responses": "numerical.csv", "key": "numerical_key.csv", "questions": 15, "answerStartCol": 0 },
+    { "name": "attention_to_detail_sum",     "mean": 12.52, "sd": 2.38,
+      "responses": "atd.csv",       "key": "atd_key.csv",       "questions": 15, "answerStartCol": 0 },
+    { "name": "logical_reasoning_sum",       "mean": 12.31, "sd": 3.84,
+      "responses": "logical.csv",   "key": "logical_key.csv",   "questions": 20, "answerStartCol": 2 }
+  ],
+  "composites": [
+    { "name": "CA_overall", "method": "AGGREGATE_OF_CHILDREN_MEAN", "basis": "STEN",
+      "children": ["attention_to_detail_sum","logical_reasoning_sum","numerical_reasoning_sum","verbal_reasoning_sum"] },
+    { "name": "IQ_overall", "method": "AGGREGATE_OF_CHILDREN_MEAN", "basis": "TSCORE",
+      "children": ["attention_to_detail_sum","logical_reasoning_sum","numerical_reasoning_sum","verbal_reasoning_sum"] }
+  ]
+}

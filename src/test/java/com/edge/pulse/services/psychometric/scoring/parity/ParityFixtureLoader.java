@@ -66,6 +66,7 @@ public final class ParityFixtureLoader {
     public static Fixture load(String dir) {
         try {
             JsonNode cfg = M.readTree(resource(dir + "/config.json"));
+            if (cfg.has("subScales")) return loadCa(dir, cfg);
             String assessment = cfg.get("assessment").asText();
             String strategyStr = cfg.path("itemStrategy").asText("LIKERT_VALUE");
             ItemStrategyType strategy = ItemStrategyType.valueOf(strategyStr);
@@ -244,6 +245,120 @@ public final class ParityFixtureLoader {
         } catch (Exception ex) {
             throw new RuntimeException("Failed to load parity fixture: " + dir, ex);
         }
+    }
+
+    /**
+     * CA (cognitive) loader: answer-key sub-scales merged across multiple response files plus the
+     * CA_overall (STEN-mean) and IQ_overall (T-mean) composites. One {@link ItemConfig} per
+     * sub-scale question with its keyed option as correctAnswerId; per-user {@link ItemResponse}
+     * carries the chosen option's synthetic id in selectedAnswerIds.
+     */
+    private static Fixture loadCa(String dir, JsonNode cfg) throws Exception {
+        String assessment = cfg.get("assessment").asText();
+        BigDecimal tFactor = bd(cfg, "tFactor", "15");
+        BigDecimal tOffset = bd(cfg, "tOffset", "100");
+        BigDecimal tClipLo = bd(cfg, "tClipLo", "40");
+        BigDecimal tClipHi = bd(cfg, "tClipHi", "160");
+
+        Map<String, UUID> scaleIdByName = new LinkedHashMap<>();
+        List<ScaleConfig> scales = new ArrayList<>();
+        List<ItemConfig> items = new ArrayList<>();
+        // per-user, accumulate responses across all sub-scale files
+        Map<String, Map<UUID, ItemResponse>> responsesByUser = new LinkedHashMap<>();
+        LinkedHashSet<String> userSet = new LinkedHashSet<>();
+
+        for (JsonNode ss : cfg.get("subScales")) {
+            String name = ss.get("name").asText();
+            UUID scaleId = synthId("scale:" + assessment + ":" + name);
+            scaleIdByName.put(name, scaleId);
+            int nq = ss.get("questions").asInt();
+            int answerStartCol = ss.path("answerStartCol").asInt(0);
+            NormConfig norm = new NormConfig(NormStrategyType.PARAMETRIC,
+                    new BigDecimal(ss.get("mean").asText()), new BigDecimal(ss.get("sd").asText()),
+                    tFactor, tOffset, tClipLo, tClipHi, null);
+            scales.add(new ScaleConfig(scaleId, name, null, ScoreMethod.SUM, null, null, null, norm));
+
+            // answer key (ANS row, Q1 at column index 3)
+            List<String[]> keyRows = readCsv(dir + "/" + ss.get("key").asText());
+            String[] ansRow = keyRows.get(1); // row after header is ANS
+            int[] keyVals = new int[nq];
+            for (int i = 0; i < nq; i++) keyVals[i] = Integer.parseInt(ansRow[3 + i].trim());
+
+            // build items + correctAnswerId per question
+            for (int i = 0; i < nq; i++) {
+                String q = name + ":Q" + (i + 1);
+                UUID qid = synthId("q:" + assessment + ":" + q);
+                UUID correct = synthId("opt:" + assessment + ":" + q + ":" + keyVals[i]);
+                items.add(new ItemConfig(qid, scaleId, ItemStrategyType.ANSWER_KEY_SINGLE,
+                        ScoreDirection.FORWARD, 1.0, correct, null, false, null));
+            }
+
+            // responses: locate the answer block (first nq Q-columns after skipping answerStartCol leading Q-cols)
+            List<String[]> rows = readCsv(dir + "/" + ss.get("responses").asText());
+            String[] header = rows.get(0);
+            int userCol = indexOf(header, "userName");
+            List<Integer> qColIdx = new ArrayList<>();
+            for (int c = 0; c < header.length; c++) if (header[c].startsWith("Q")) qColIdx.add(c);
+            // skip the leading answerStartCol Q-columns (e.g. CA.b duplicate timer Q1,Q2), then take nq
+            List<Integer> answerCols = qColIdx.subList(answerStartCol, answerStartCol + nq);
+
+            for (int ri = 1; ri < rows.size(); ri++) {
+                String[] row = rows.get(ri);
+                if (row.length <= userCol || row[userCol].isBlank()) continue;
+                String user = row[userCol];
+                userSet.add(user);
+                Map<UUID, ItemResponse> resp = responsesByUser.computeIfAbsent(user, k -> new LinkedHashMap<>());
+                for (int i = 0; i < nq; i++) {
+                    int col = answerCols.get(i);
+                    Integer val = col < row.length ? coerceInt(row[col]) : null;
+                    String q = name + ":Q" + (i + 1);
+                    UUID qid = synthId("q:" + assessment + ":" + q);
+                    // unanswered/NaN -> a value that never matches the key (so scores 0, mirroring replace NaN->0)
+                    UUID chosen = synthId("opt:" + assessment + ":" + q + ":" + (val == null ? "__NA__" : String.valueOf(val)));
+                    resp.put(qid, new ItemResponse(qid, null, null, null, List.of(chosen), null, null));
+                }
+            }
+        }
+
+        // composites
+        for (JsonNode cj : cfg.get("composites")) {
+            String name = cj.get("name").asText();
+            UUID id = synthId("scale:" + assessment + ":" + name);
+            scaleIdByName.put(name, id);
+            CompositeMethod cm = CompositeMethod.valueOf(cj.get("method").asText());
+            CompositeBasis basis = CompositeBasis.valueOf(cj.get("basis").asText());
+            List<UUID> childIds = new ArrayList<>();
+            for (JsonNode c : cj.get("children")) childIds.add(scaleIdByName.get(c.asText()));
+            scales.add(new ScaleConfig(id, name, null, ScoreMethod.SUM, cm, basis, childIds, null));
+        }
+
+        // expected
+        Map<String, Map<String, BigDecimal>> expSten = new LinkedHashMap<>();
+        Map<String, Map<String, BigDecimal>> expT = new LinkedHashMap<>();
+        List<String[]> exp = readCsv(dir + "/expected.csv");
+        String[] eh = exp.get(0);
+        int euser = indexOf(eh, "userName");
+        for (int ri = 1; ri < exp.size(); ri++) {
+            String[] row = exp.get(ri);
+            if (row.length <= euser || row[euser].isBlank()) continue;
+            String user = row[euser];
+            Map<String, BigDecimal> sten = new LinkedHashMap<>();
+            Map<String, BigDecimal> t = new LinkedHashMap<>();
+            for (int c = 0; c < eh.length; c++) {
+                String col = eh[c];
+                String cell = c < row.length ? row[c] : "";
+                if (cell == null || cell.isBlank()) continue;
+                if (col.endsWith("_Sten"))
+                    sten.put(col.substring(0, col.length() - "_Sten".length()), new BigDecimal(cell.trim()));
+                else if (col.endsWith("_Tscore"))
+                    t.put(col.substring(0, col.length() - "_Tscore".length()), new BigDecimal(cell.trim()));
+            }
+            expSten.put(user, sten);
+            expT.put(user, t);
+        }
+
+        return new Fixture(scales, items, scaleIdByName, responsesByUser,
+                new ArrayList<>(userSet), expSten, expT);
     }
 
     /** PTI Consistency validity scale: sum of abs differences over recoded item values. */
