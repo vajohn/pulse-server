@@ -313,6 +313,7 @@ class ApiContractTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 "Big-Five", "PERSONALITY",
                 TestResultStatus.SCORED,
+                com.edge.pulse.data.enums.ResultState.PROVISIONAL,
                 LocalDateTime.of(2026, 3, 1, 10, 0),
                 LocalDateTime.of(2026, 3, 1, 10, 1),
                 0);
@@ -324,11 +325,13 @@ class ApiContractTest {
         assertThat(node.has("testName")).isTrue();
         assertThat(node.has("testType")).isTrue();
         assertThat(node.has("status")).isTrue();
+        assertThat(node.has("resultState")).isTrue();
         assertThat(node.has("completedAt")).isTrue();
         assertThat(node.has("scoredAt")).isTrue();
         assertThat(node.has("focusLossCount")).isTrue();
         // Status must be enum name string, not ordinal
         assertThat(node.get("status").asText()).isEqualTo("SCORED");
+        assertThat(node.get("resultState").asText()).isEqualTo("PROVISIONAL");
     }
 
     // -----------------------------------------------------------------------

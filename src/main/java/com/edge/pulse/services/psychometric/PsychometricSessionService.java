@@ -307,6 +307,7 @@ public class PsychometricSessionService {
                 r.getTest().getName(),
                 r.getTest().getTestType().name(),
                 r.getStatus(),
+                r.getResultState(),
                 r.getSession().getCompletedAt(),
                 r.getScoredAt(),
                 r.getFocusLossCount());
