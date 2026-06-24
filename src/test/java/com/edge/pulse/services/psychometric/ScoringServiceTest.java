@@ -550,4 +550,79 @@ class ScoringServiceTest {
                 .candidateAnswer(selected)
                 .build();
     }
+
+    // ── BINARY_FORCED_CHOICE JPA path (I1) ───────────────────────────────────
+
+    /**
+     * Verifies the JPA path for BINARY_FORCED_CHOICE: the selected option's
+     * {@code displayOrder} (0-based) is mapped by {@code buildResponse} to
+     * scaleValue = displayOrder + 1, which {@code BinaryForcedChoiceStrategy}
+     * then scores as 1.0 (value=1, "preferred") or 0.0 (value=2, "not preferred")
+     * for FORWARD direction.
+     *
+     * <p>Scenario A: displayOrder=0 → value=1 → FORWARD binary score=1.0
+     * → rawScore=1.000 (SUM, weight=1).
+     *
+     * <p>Scenario B: displayOrder=1 → value=2 → FORWARD binary score=0.0
+     * → rawScore=0.000 (SUM, weight=1).
+     *
+     * <p>The two raw scores differ (1.000 vs 0.000), proving the JPA path
+     * correctly routes displayOrder through {@code buildResponse} through
+     * the {@code BinaryForcedChoiceStrategy} to the persisted ScaleScore.
+     */
+    @Test
+    void scoreSession_binaryForcedChoice_mapsDisplayOrderToValue_scenarioA_displayOrder0() {
+        // displayOrder=0 → value=1 → BinaryForcedChoiceStrategy FORWARD: (1==1)?1.0:0.0 → 1.0
+        // SUM with weight=1: rawScore = 1.0 * 1 = 1.000
+        CandidateAnswer optOrder0 = CandidateAnswer.builder()
+                .id(UUID.randomUUID()).displayOrder(0).build();
+
+        ScoringKeyItem fcItem = buildForcedChoiceItem(ScoreDirection.FORWARD, BigDecimal.ONE);
+        AnswerChoice answer = buildChoiceAnswer(optOrder0);
+
+        setupFullScoreScenario(List.of(fcItem), Map.of(), Map.of(questionId, answer));
+        scoringService.scoreSession(session);
+
+        ArgumentCaptor<ScaleScore> cap = ArgumentCaptor.forClass(ScaleScore.class);
+        verify(scaleScoreRepository, atLeastOnce()).save(cap.capture());
+        ScaleScore ss = cap.getAllValues().stream()
+                .filter(s -> s.getScale().getId().equals(scaleId)).findFirst().orElseThrow();
+        assertThat(ss.getRawScore()).isEqualByComparingTo(new BigDecimal("1.000"));
+        assertThat(ss.getItemsAnswered()).isEqualTo(1);
+    }
+
+    @Test
+    void scoreSession_binaryForcedChoice_mapsDisplayOrderToValue_scenarioB_displayOrder1() {
+        // displayOrder=1 → value=2 → BinaryForcedChoiceStrategy FORWARD: (2==1)?1.0:0.0 → 0.0
+        // SUM with weight=1: rawScore = 0.0 * 1 = 0.000
+        // This is distinct from Scenario A, proving displayOrder is correctly mapped.
+        CandidateAnswer optOrder1 = CandidateAnswer.builder()
+                .id(UUID.randomUUID()).displayOrder(1).build();
+
+        ScoringKeyItem fcItem = buildForcedChoiceItem(ScoreDirection.FORWARD, BigDecimal.ONE);
+        AnswerChoice answer = buildChoiceAnswer(optOrder1);
+
+        setupFullScoreScenario(List.of(fcItem), Map.of(), Map.of(questionId, answer));
+        scoringService.scoreSession(session);
+
+        ArgumentCaptor<ScaleScore> cap = ArgumentCaptor.forClass(ScaleScore.class);
+        verify(scaleScoreRepository, atLeastOnce()).save(cap.capture());
+        ScaleScore ss = cap.getAllValues().stream()
+                .filter(s -> s.getScale().getId().equals(scaleId)).findFirst().orElseThrow();
+        assertThat(ss.getRawScore()).isEqualByComparingTo(new BigDecimal("0.000"));
+        assertThat(ss.getItemsAnswered()).isEqualTo(1);
+    }
+
+    private ScoringKeyItem buildForcedChoiceItem(ScoreDirection direction, BigDecimal weight) {
+        Question q = Question.builder().id(questionId)
+                .questionType(QuestionType.FORCED_CHOICE).build();
+        return ScoringKeyItem.builder()
+                .id(UUID.randomUUID())
+                .scale(scale)
+                .question(q)
+                .direction(direction)
+                .weight(weight)
+                .itemStrategy(ItemStrategyType.BINARY_FORCED_CHOICE)
+                .build();
+    }
 }
