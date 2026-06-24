@@ -1,0 +1,52 @@
+package com.edge.pulse.services.psychometric.micro;
+
+import com.edge.pulse.services.psychometric.micro.model.SamplerInput;
+import com.edge.pulse.services.psychometric.micro.model.SamplerItem;
+import com.edge.pulse.services.psychometric.micro.model.SamplerScale;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+
+/**
+ * Pure, deterministic item sampler for micro-engagement (D5).
+ *
+ * <p>Draws ≤{@code maxItems} question ids for the next micro-set, ordering by:
+ * <ol>
+ *   <li>UNSEEN before SEEN (avoid repeats / maximise coverage);</li>
+ *   <li>scale nearest completion first (smallest remaining items_required − items_collected);</li>
+ *   <li>a seeded shuffle within the same priority bucket so ties are stable per seed.</li>
+ * </ol>
+ * Completed scales (remaining == 0) contribute nothing. No JPA / Spring state — fully
+ * unit-testable; annotated {@link Component} only so it can be injected as a stateless bean.
+ */
+@Component
+public class ItemSampler {
+
+    public List<UUID> next(SamplerInput in) {
+        Map<UUID, Integer> remainingByScale = new HashMap<>();
+        for (SamplerScale s : in.scales()) {
+            remainingByScale.put(s.scaleId(), s.remaining());
+        }
+
+        // Keep only items whose scale still needs more items.
+        List<SamplerItem> eligible = new ArrayList<>();
+        for (SamplerItem item : in.items()) {
+            int remaining = remainingByScale.getOrDefault(item.scaleId(), 0);
+            if (remaining > 0) eligible.add(item);
+        }
+
+        // Seeded shuffle first so within-bucket order is deterministic-but-varied per seed.
+        Random rng = new Random(in.seed());
+        Collections.shuffle(eligible, rng);
+
+        // Stable sort by (seen asc, scale-remaining asc). shuffle provides the tie-break order.
+        eligible.sort(Comparator
+                .comparing((SamplerItem i) -> i.seen())                                   // false (unseen) first
+                .thenComparingInt(i -> remainingByScale.getOrDefault(i.scaleId(), 0)));    // nearest completion first
+
+        int n = Math.max(0, Math.min(in.maxItems(), eligible.size()));
+        List<UUID> picked = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) picked.add(eligible.get(i).questionId());
+        return picked;
+    }
+}
