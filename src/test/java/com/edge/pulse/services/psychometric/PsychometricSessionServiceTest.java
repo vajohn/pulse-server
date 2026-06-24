@@ -102,6 +102,72 @@ class PsychometricSessionServiceTest {
                 .build();
     }
 
+    // ── toQuestionDto / bilingual delivery ───────────────────────────────────
+
+    @Test
+    void startSession_questionDto_includesBodyAr_whenSet() {
+        // Arrange: question with an Arabic body variant (e.g. Q3_ARA equivalent)
+        String enBody = "I stay calm under pressure.";
+        String arBody = "أتحلى بالهدوء تحت الضغط.";
+        Question q = Question.builder()
+                .id(UUID.randomUUID())
+                .body(enBody)
+                .bodyAr(arBody)
+                .questionType(QuestionType.SCALE)
+                .displayOrder(1)
+                .scaleMin(1).scaleMax(5)
+                .minLabel("SD").maxLabel("SA")
+                .build();
+
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(FIXED_EPOCH));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(candidateUser));
+        when(assignmentRepository.hasVisibleAssignment(surveyId, userId, ORG_PATH)).thenReturn(true);
+        when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
+        when(questionRepository.findActiveByFormIdWithAnswers(surveyId)).thenReturn(List.of(q));
+        when(sessionService.openOrResumeSession(eq(surveyId), eq(userId), any(OpenSessionRequest.class)))
+                .thenReturn(session);
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        PsychometricSessionDto dto = service.startSession(surveyId, userId);
+
+        // Assert: Arabic body must be present in the question DTO
+        assertThat(dto.questions()).hasSize(1);
+        var questionDto = dto.questions().get(0);
+        assertThat(questionDto.body()).isEqualTo(enBody);
+        assertThat(questionDto.bodyAr()).isEqualTo(arBody);
+    }
+
+    @Test
+    void startSession_questionDto_bodyAr_isNull_whenNotAuthored() {
+        // Arrange: question with no Arabic variant (bodyAr not set)
+        Question q = Question.builder()
+                .id(UUID.randomUUID())
+                .body("How do you handle conflict?")
+                .bodyAr(null)
+                .questionType(QuestionType.SCALE)
+                .displayOrder(1)
+                .scaleMin(1).scaleMax(5)
+                .minLabel("Never").maxLabel("Always")
+                .build();
+
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(FIXED_EPOCH));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(candidateUser));
+        when(assignmentRepository.hasVisibleAssignment(surveyId, userId, ORG_PATH)).thenReturn(true);
+        when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
+        when(questionRepository.findActiveByFormIdWithAnswers(surveyId)).thenReturn(List.of(q));
+        when(sessionService.openOrResumeSession(eq(surveyId), eq(userId), any(OpenSessionRequest.class)))
+                .thenReturn(session);
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        PsychometricSessionDto dto = service.startSession(surveyId, userId);
+
+        // Assert: bodyAr is null — Flutter localizedBody() falls back to body (EN)
+        assertThat(dto.questions()).hasSize(1);
+        assertThat(dto.questions().get(0).bodyAr()).isNull();
+    }
+
     // ── startSession ─────────────────────────────────────────────────────────
 
     @Test

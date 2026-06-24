@@ -29,6 +29,8 @@ import java.util.UUID;
 public record PsychometricQuestionDto(
         UUID id,
         String body,
+        /** Arabic translation of {@code body}. Null when no AR variant has been authored. */
+        String bodyAr,
         /** SCREAMING_SNAKE string matching Spring QuestionType enum. */
         String questionType,
         int displayOrder,

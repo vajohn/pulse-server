@@ -430,7 +430,7 @@ class ApiContractTest {
         UUID sessionId = UUID.randomUUID();
         UUID q1Id = UUID.randomUUID();
         PsychometricQuestionDto question = new PsychometricQuestionDto(
-                q1Id, "I handle pressure well.", "SCALE", 1,
+                q1Id, "I handle pressure well.", null, "SCALE", 1,
                 1, 5, "Strongly Disagree", "Strongly Agree", List.of(),
                 false, false, null, null);
 
@@ -485,7 +485,7 @@ class ApiContractTest {
     void psychometricQuestionDto_scale_serializes_rangeFields() throws Exception {
         UUID qId = UUID.randomUUID();
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
-                qId, "I stay calm under pressure.", "SCALE", 1,
+                qId, "I stay calm under pressure.", null, "SCALE", 1,
                 1, 5, "Strongly Disagree", "Strongly Agree", List.of(),
                 false, false, null, null);
 
@@ -511,7 +511,7 @@ class ApiContractTest {
         // CHOICE questions have null scale fields — Flutter reads them as int?/String?
         CandidateAnswerDto answer = new CandidateAnswerDto(UUID.randomUUID(), "Option A", null, 1);
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
-                UUID.randomUUID(), "Which best describes you?", "CHOICE", 2,
+                UUID.randomUUID(), "Which best describes you?", null, "CHOICE", 2,
                 null, null, null, null, List.of(answer),
                 false, false, null, null);
 
@@ -540,7 +540,7 @@ class ApiContractTest {
         CandidateAnswerDto a1 = new CandidateAnswerDto(UUID.randomUUID(), "Option A", null, 1);
         CandidateAnswerDto a2 = new CandidateAnswerDto(UUID.randomUUID(), "Option B", null, 2);
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
-                UUID.randomUUID(), "Select all correct answers.", "CHOICE_MULTIPLE", 1,
+                UUID.randomUUID(), "Select all correct answers.", null, "CHOICE_MULTIPLE", 1,
                 null, null, null, null, List.of(a1, a2),
                 true, true, null, null);
 
@@ -558,7 +558,7 @@ class ApiContractTest {
     @Test
     void psychometricQuestionDto_adjectiveChecklist_serializes_adjectives() throws Exception {
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
-                UUID.randomUUID(), "Tap words that describe you.", "ADJECTIVE_CHECKLIST", 1,
+                UUID.randomUUID(), "Tap words that describe you.", null, "ADJECTIVE_CHECKLIST", 1,
                 null, null, null, null, List.of(),
                 false, false, List.of("Confident", "Empathetic", "Driven"), null);
 
@@ -580,7 +580,7 @@ class ApiContractTest {
                 "a", "I enjoy leading teams",   "scaleA", scaleAId.toString(),
                 "b", "I prefer working alone",  "scaleB", scaleBId.toString());
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
-                UUID.randomUUID(), null, "FORCED_CHOICE", 1,
+                UUID.randomUUID(), null, null, "FORCED_CHOICE", 1,
                 null, null, null, null, List.of(),
                 false, false, null, List.of(pair));
 

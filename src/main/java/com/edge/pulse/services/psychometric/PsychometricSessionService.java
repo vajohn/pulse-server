@@ -286,6 +286,7 @@ public class PsychometricSessionService {
         return new PsychometricQuestionDto(
                 q.getId(),
                 q.getBody(),
+                q.getBodyAr(),
                 type.name(),
                 q.getDisplayOrder(),
                 q.getScaleMin(),
