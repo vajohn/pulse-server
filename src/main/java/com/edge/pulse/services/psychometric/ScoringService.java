@@ -1,11 +1,14 @@
 package com.edge.pulse.services.psychometric;
 
+import com.edge.pulse.data.enums.CompositeMethod;
+import com.edge.pulse.data.enums.ItemStrategyType;
+import com.edge.pulse.data.enums.NormStatus;
+import com.edge.pulse.data.enums.NormStrategyType;
 import com.edge.pulse.data.enums.QuestionType;
+import com.edge.pulse.data.enums.ResultState;
 import com.edge.pulse.data.enums.ScoreDirection;
-import com.edge.pulse.data.enums.ScoreMethod;
 import com.edge.pulse.data.enums.ScoringKeyStatus;
 import com.edge.pulse.data.enums.TestResultStatus;
-import com.edge.pulse.data.enums.NormStatus;
 import com.edge.pulse.data.models.AnswerAdjective;
 import com.edge.pulse.data.models.AnswerChoice;
 import com.edge.pulse.data.models.AnswerScale;
@@ -15,6 +18,8 @@ import com.edge.pulse.repositories.answer.AnswerAdjectiveRepository;
 import com.edge.pulse.repositories.answer.AnswerChoiceRepository;
 import com.edge.pulse.repositories.answer.AnswerScaleRepository;
 import com.edge.pulse.repositories.psychometric.*;
+import com.edge.pulse.services.psychometric.scoring.ScoringCalculator;
+import com.edge.pulse.services.psychometric.scoring.model.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,19 +34,22 @@ import java.util.stream.Collectors;
 /**
  * Scoring engine for psychometric tests.
  *
+ * <p>This class is the JPA/transaction boundary: it loads the scoring-key + norm
+ * configuration and the candidate's answers, flattens them into the pure
+ * {@link ScoringInput}, delegates the maths to {@link ScoringCalculator}, then
+ * persists the {@link TestResult} + per-scale {@link ScaleScore} + competency scores.
+ *
  * <p>Orchestration:
  * <ol>
  *   <li>Detects whether the completed session belongs to a {@link PsychometricTest}.</li>
  *   <li>Loads the single ACTIVE {@link ScoringKeyVersion} for the test.</li>
- *   <li>Computes leaf-scale raw scores using the appropriate algorithm:
- *       <ul>
- *         <li>CHOICE items (cognitive): 1 × weight if selected answer is keyed correct; otherwise 0.</li>
- *         <li>SCALE items (personality): applies {@link ScoreDirection} (FORWARD/REVERSE), then × weight.</li>
- *       </ul>
- *   </li>
- *   <li>Rolls up leaf scores to parent scales (SUM or MEAN).</li>
- *   <li>Looks up sten / percentile / z-score from the active {@link NormTableVersion}.</li>
- *   <li>Persists {@link TestResult} + one {@link ScaleScore} per scale.</li>
+ *   <li>Maps each {@link ScoringKeyItem} → {@link ItemConfig} (strategy resolved from
+ *       {@code item_strategy}, falling back to the question type) and each answered
+ *       question → {@link ItemResponse}.</li>
+ *   <li>Maps each {@link PsychometricScale} → {@link ScaleConfig}, attaching a
+ *       {@link NormConfig} from the active {@link NormTableVersion} (PARAMETRIC params
+ *       or EMPIRICAL_PERCENTILE buckets).</li>
+ *   <li>Calls {@link ScoringCalculator#calculate(ScoringInput)} and persists the result.</li>
  * </ol>
  *
  * <p>If no ACTIVE scoring key exists the result is persisted with status PENDING
@@ -73,7 +81,7 @@ public class ScoringService {
      * Entry point called from {@link com.edge.pulse.services.SessionService} after
      * a session is marked complete.
      *
-     * <p>If the session's survey has no associated {@link PsychometricTest} this method
+     * <p>If the session's form has no associated {@link PsychometricTest} this method
      * returns immediately with no side effects.
      */
     @Transactional
@@ -105,7 +113,6 @@ public class ScoringService {
         List<ScoringKeyItem> items = scoringKeyItemRepository.findByScoringKeyIdWithDetails(key.getId());
 
         // ── Batch-load all answer types for this session — avoids N+1 ────────
-        // CHOICE answers: keyed by questionId → list (supports CHOICE_MULTIPLE)
         Map<UUID, List<AnswerChoice>> choicesByQuestion = answerChoiceRepository
                 .findCurrentBySessionId(session.getId())
                 .stream()
@@ -121,7 +128,7 @@ public class ScoringService {
                 .stream()
                 .collect(Collectors.toMap(aa -> aa.getSubmission().getQuestion().getId(), aa -> aa));
 
-        // Batch-load the CHOICE_MULTIPLE correct-answer sets for items that need them
+        // Batch-load the multi-select correct-answer sets for ANSWER_KEY_MULTIPLE items
         List<UUID> multipleChoiceItemIds = items.stream()
                 .filter(i -> i.getQuestion().getQuestionType() == QuestionType.CHOICE_MULTIPLE)
                 .map(ScoringKeyItem::getId)
@@ -136,50 +143,92 @@ public class ScoringService {
                                         ca -> ca.getCandidateAnswer().getId(),
                                         Collectors.toList())));
 
-        // ── Leaf scale raw scores ────────────────────────────────────────────────
-        // scaleRawAccumulator: scaleId → [weightedSum, weightSum, itemsAnswered, itemsTotal]
-        Map<UUID, double[]> acc = new LinkedHashMap<>();
-        Map<UUID, PsychometricScale> scalesById = new HashMap<>();
+        // ── Build ItemConfigs + ItemResponses ────────────────────────────────────
+        List<ItemConfig> itemConfigs = new ArrayList<>(items.size());
+        Map<UUID, ItemResponse> responsesByQuestion = new HashMap<>();
 
         for (ScoringKeyItem item : items) {
             UUID qId = item.getQuestion().getId();
-            UUID scaleId = item.getScale().getId();
-            scalesById.put(scaleId, item.getScale());
+            ItemStrategyType strategy = resolveStrategy(item);
+            itemConfigs.add(new ItemConfig(
+                    qId,
+                    item.getScale().getId(),
+                    strategy,
+                    item.getDirection(),
+                    item.getWeight().doubleValue(),
+                    item.getCorrectAnswer() != null ? item.getCorrectAnswer().getId() : null,
+                    correctAnswerIdsByItem.getOrDefault(item.getId(), List.of()),
+                    item.isPartialCredit(),
+                    null /* tagScaleId: resolved per-response for OPTION_TAGGED_TALLY */));
 
-            double[] bucket = acc.computeIfAbsent(scaleId, k -> new double[]{0, 0, 0, 0});
-            double weight = item.getWeight().doubleValue();
-            bucket[3] += 1; // itemsTotal
-
-            double rawValue = computeItemScore(item,
-                    choicesByQuestion.getOrDefault(qId, List.of()),
-                    scaleByQuestion.get(qId),
-                    adjectiveByQuestion.get(qId),
-                    correctAnswerIdsByItem.getOrDefault(item.getId(), List.of()));
-            if (!Double.isNaN(rawValue)) {
-                bucket[0] += rawValue * weight; // weighted sum
-                bucket[1] += weight;            // weight sum (for MEAN)
-                bucket[2] += 1;                 // itemsAnswered
+            // Build the ItemResponse for this question (only once per question)
+            if (!responsesByQuestion.containsKey(qId)) {
+                ItemResponse r = buildResponse(strategy, qId,
+                        scaleByQuestion.get(qId),
+                        choicesByQuestion.getOrDefault(qId, List.of()),
+                        adjectiveByQuestion.get(qId));
+                if (r != null) {
+                    responsesByQuestion.put(qId, r);
+                }
             }
         }
 
-        // ── Compute final leaf raw scores ────────────────────────────────────────
-        Map<UUID, BigDecimal> leafRawScores = new HashMap<>();
-        for (Map.Entry<UUID, double[]> entry : acc.entrySet()) {
-            UUID scaleId = entry.getKey();
-            double[] b = entry.getValue();
-            PsychometricScale scale = scalesById.get(scaleId);
-            double raw = computeScaleRaw(scale, b);
-            leafRawScores.put(scaleId, BigDecimal.valueOf(raw).setScale(3, RoundingMode.HALF_UP));
-        }
-
-        // ── Parent scale rollup ──────────────────────────────────────────────────
+        // ── Build ScaleConfigs (with parent→children map + norm) ──────────────────
         List<PsychometricScale> allScales = scaleRepository.findByTestId(test.getId());
-        Map<UUID, BigDecimal> allRawScores = new HashMap<>(leafRawScores);
-        rollupParentScores(allScales, leafRawScores, allRawScores);
+        Map<UUID, PsychometricScale> scaleById = allScales.stream()
+                .collect(Collectors.toMap(PsychometricScale::getId, s -> s));
 
-        // ── Norm lookup ──────────────────────────────────────────────────────────
         Optional<NormTableVersion> normOpt = normTableVersionRepository
                 .findFirstByTestIdAndStatus(test.getId(), NormStatus.VALIDATED);
+
+        Map<UUID, List<UUID>> childrenByParent = new HashMap<>();
+        for (PsychometricScale s : allScales) {
+            if (s.getParentScale() != null) {
+                childrenByParent
+                        .computeIfAbsent(s.getParentScale().getId(), k -> new ArrayList<>())
+                        .add(s.getId());
+            }
+        }
+
+        List<ScaleConfig> scaleConfigs = new ArrayList<>(allScales.size());
+        for (PsychometricScale s : allScales) {
+            CompositeMethod cm = s.getCompositeMethod();
+            List<UUID> children = childrenByParent.getOrDefault(s.getId(), List.of());
+
+            // ── Carry-forward consistency guard ──────────────────────────────────
+            // AGGREGATE_OF_CHILDREN_* must have children; leaf/AGGREGATE_OF_ITEMS must not
+            // claim a child set it does not own (i.e. it must derive from items, not children).
+            boolean aggregatesChildren = cm == CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN
+                    || cm == CompositeMethod.AGGREGATE_OF_CHILDREN_SUM;
+            if (aggregatesChildren && children.isEmpty()) {
+                log.warn("ScoringService: scale {} ({}) has composite method {} but no child scales — skipping",
+                        s.getId(), s.getName(), cm);
+                continue;
+            }
+            if (!aggregatesChildren && !children.isEmpty()) {
+                log.warn("ScoringService: scale {} ({}) has child scales but composite method {} does not "
+                        + "aggregate children — skipping to avoid an incorrect score",
+                        s.getId(), s.getName(), cm);
+                continue;
+            }
+
+            List<UUID> childScaleIds = aggregatesChildren ? children : List.of();
+            NormConfig norm = buildNormConfig(normOpt.orElse(null), s.getId());
+
+            scaleConfigs.add(new ScaleConfig(
+                    s.getId(),
+                    s.getName(),
+                    s.getParentScale() != null ? s.getParentScale().getId() : null,
+                    s.getScoreMethod(),
+                    cm,
+                    s.getCompositeBasis(),
+                    childScaleIds,
+                    norm));
+        }
+
+        // ── Delegate to the pure calculator ───────────────────────────────────────
+        ScoringOutput output = new ScoringCalculator()
+                .calculate(new ScoringInput(scaleConfigs, itemConfigs, responsesByQuestion));
 
         // ── Persist TestResult ───────────────────────────────────────────────────
         TestResult result = TestResult.builder()
@@ -188,6 +237,7 @@ public class ScoringService {
                 .scoringKeyVersion(key)
                 .normTableVersion(normOpt.orElse(null))
                 .status(TestResultStatus.SCORED)
+                .resultState(ResultState.FINAL)
                 .scoredAt(LocalDateTime.now())
                 .focusLossCount(session.getFocusLossCount())
                 .build();
@@ -195,46 +245,21 @@ public class ScoringService {
 
         // ── Persist ScaleScores ──────────────────────────────────────────────────
         List<ScaleScore> savedScaleScores = new ArrayList<>();
-        for (PsychometricScale scale : allScales) {
-            BigDecimal rawScore = allRawScores.get(scale.getId());
-            if (rawScore == null) {
-                continue; // parent scale with no contributing items — skip
+        for (ScaleScoreResult r : output.scaleScores()) {
+            PsychometricScale scale = scaleById.get(r.scaleId());
+            if (scale == null) {
+                continue; // defensive — calculator only emits ids it was given
             }
-
-            double[] bucket = acc.getOrDefault(scale.getId(), null);
-            int itemsAnswered = bucket != null ? (int) bucket[2] : 0;
-            int itemsTotal = bucket != null ? (int) bucket[3] : 0;
-            // Parent scales don't have their own item buckets — use 0/0 to signal rollup
-            if (scale.getParentScale() == null && !acc.containsKey(scale.getId())) {
-                itemsAnswered = 0;
-                itemsTotal = 0;
-            }
-
-            BigDecimal stenScore = null;
-            BigDecimal percentile = null;
-            BigDecimal zScore = null;
-
-            if (normOpt.isPresent()) {
-                // Parametric-normal norm: standardise the raw score against the scale's (mean, sd).
-                var paramOpt = normScaleParamRepository
-                        .findByNormTable_IdAndScale_Id(normOpt.get().getId(), scale.getId());
-                if (paramOpt.isPresent()) {
-                    NormScaleParam p = paramOpt.get();
-                    zScore = NormStandardizer.zScore(rawScore, p.getMean(), p.getSd());
-                    stenScore = BigDecimal.valueOf(NormStandardizer.sten(zScore));
-                    percentile = NormStandardizer.percentile(zScore);
-                }
-            }
-
             ScaleScore ss = ScaleScore.builder()
                     .result(result)
                     .scale(scale)
-                    .rawScore(rawScore)
-                    .stenScore(stenScore)
-                    .percentile(percentile)
-                    .zScore(zScore)
-                    .itemsAnswered(itemsAnswered)
-                    .itemsTotal(itemsTotal)
+                    .rawScore(r.rawScore())
+                    .zScore(r.zScore())
+                    .stenScore(r.stenScore())
+                    .tScore(r.tScore())
+                    .percentile(r.percentile())
+                    .itemsAnswered(r.itemsAnswered())
+                    .itemsTotal(r.itemsTotal())
                     .build();
             savedScaleScores.add(scaleScoreRepository.save(ss));
         }
@@ -243,7 +268,7 @@ public class ScoringService {
         scoreCompetencies(result, savedScaleScores);
 
         log.info("ScoringService: scored session {} for test {} — {} scale scores",
-                session.getId(), test.getId(), allScales.size());
+                session.getId(), test.getId(), savedScaleScores.size());
     }
 
     /**
@@ -254,110 +279,135 @@ public class ScoringService {
     public void rescoreResult(UUID resultId) {
         TestResult result = testResultRepository.findById(resultId)
                 .orElseThrow(() -> new IllegalArgumentException("TestResult not found: " + resultId));
-        // Delete old scores (competency scores cascade delete from test_result ON DELETE CASCADE,
-        // but we also delete manually to keep the transaction explicit)
         competencyScoreRepository.deleteByResultId(result.getId());
         scaleScoreRepository.deleteByResultId(result.getId());
         testResultRepository.delete(result);
         scoreSession(result.getSession());
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────────
+    // ── Config-mapping helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Resolves the item scoring strategy: explicit {@code item_strategy} if set,
+     * otherwise a default derived from the question type. ATP/VIP strategies
+     * (BINARY_FORCED_CHOICE / OPTION_TAGGED_TALLY) cannot be inferred and must be
+     * set explicitly on the scoring key.
+     */
+    private ItemStrategyType resolveStrategy(ScoringKeyItem item) {
+        if (item.getItemStrategy() != null) {
+            return item.getItemStrategy();
+        }
+        return switch (item.getQuestion().getQuestionType()) {
+            case SCALE -> ItemStrategyType.LIKERT_VALUE;
+            case CHOICE_SINGLE, FORCED_CHOICE -> ItemStrategyType.ANSWER_KEY_SINGLE;
+            case CHOICE_MULTIPLE -> ItemStrategyType.ANSWER_KEY_MULTIPLE;
+            case ADJECTIVE_CHECKLIST -> ItemStrategyType.ADJECTIVE_COUNT;
+            default -> throw new IllegalStateException(
+                    "No default item strategy for " + item.getQuestion().getQuestionType());
+        };
+    }
+
+    /**
+     * Builds an {@link ItemResponse} from the loaded answer entities for one question.
+     * Returns {@code null} if the question was not answered (so it is omitted from the
+     * response map; the calculator still counts it via {@code itemsTotal}).
+     */
+    private ItemResponse buildResponse(ItemStrategyType strategy, UUID questionId,
+                                       AnswerScale scaleAnswer,
+                                       List<AnswerChoice> choiceAnswers,
+                                       AnswerAdjective adjectiveAnswer) {
+        return switch (strategy) {
+            case LIKERT_VALUE -> {
+                if (scaleAnswer == null) yield null;
+                yield new ItemResponse(questionId, scaleAnswer.getValue(),
+                        scaleAnswer.getMinValue(), scaleAnswer.getMaxValue(),
+                        null, null, null);
+            }
+            case BINARY_FORCED_CHOICE -> {
+                // ATP: numeric value 1/2 derived from the selected option's ordinal.
+                // displayOrder is 0-based → value = displayOrder + 1 (1 or 2).
+                if (choiceAnswers.isEmpty()) yield null;
+                int value = choiceAnswers.get(0).getCandidateAnswer().getDisplayOrder() + 1;
+                yield new ItemResponse(questionId, value, 1, 2, null, null, null);
+            }
+            case ANSWER_KEY_SINGLE, ANSWER_KEY_MULTIPLE -> {
+                if (choiceAnswers.isEmpty()) yield null;
+                List<UUID> selected = choiceAnswers.stream()
+                        .map(ac -> ac.getCandidateAnswer().getId())
+                        .toList();
+                yield new ItemResponse(questionId, null, null, null, selected, null, null);
+            }
+            case ADJECTIVE_COUNT -> {
+                if (adjectiveAnswer == null) yield null;
+                yield new ItemResponse(questionId, null, null, null, null, null,
+                        adjectiveAnswer.getSelected().size());
+            }
+            case OPTION_TAGGED_TALLY -> {
+                // VIP — not in the Phase-1 parity set. No option→scale tag mapping is
+                // available yet, so emit a non-crashing "answered but untagged" response.
+                if (choiceAnswers.isEmpty()) yield null;
+                yield new ItemResponse(questionId, null, null, null, null, null, null);
+            }
+        };
+    }
+
+    /**
+     * Builds a {@link NormConfig} for one scale from the active norm table, or returns
+     * {@code null} if the scale is not normed.
+     *
+     * <ul>
+     *   <li>PARAMETRIC → mean/sd + the t-score transform params from {@link NormScaleParam}.</li>
+     *   <li>EMPIRICAL_PERCENTILE → percentile/sten buckets from {@link NormEntry} rows.</li>
+     * </ul>
+     */
+    private NormConfig buildNormConfig(NormTableVersion norm, UUID scaleId) {
+        if (norm == null) {
+            return null;
+        }
+        NormStrategyType strategy = norm.getNormStrategy();
+        if (strategy == NormStrategyType.EMPIRICAL_PERCENTILE) {
+            List<NormEntry> entries = normEntryRepository.findByNormTableIdAndScaleId(norm.getId(), scaleId);
+            if (entries.isEmpty()) {
+                return null;
+            }
+            List<NormConfig.PercentileBucket> buckets = entries.stream()
+                    .map(e -> new NormConfig.PercentileBucket(
+                            e.getRawScoreMin(), e.getRawScoreMax(), e.getPercentile(), e.getStenScore()))
+                    .toList();
+            return new NormConfig(NormStrategyType.EMPIRICAL_PERCENTILE,
+                    null, null, null, null, null, null, buckets);
+        }
+        // Default / PARAMETRIC
+        Optional<NormScaleParam> paramOpt =
+                normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), scaleId);
+        if (paramOpt.isEmpty()) {
+            return null;
+        }
+        NormScaleParam p = paramOpt.get();
+        return new NormConfig(NormStrategyType.PARAMETRIC,
+                p.getMean(), p.getSd(),
+                p.getTFactor(), p.getTOffset(), p.getTClipLo(), p.getTClipHi(),
+                null);
+    }
+
+    // ── Persistence helpers ─────────────────────────────────────────────────────────
 
     private void persistPendingResult(PsychometricTest test, ResponseSession session) {
         TestResult result = TestResult.builder()
                 .test(test)
                 .session(session)
                 .status(TestResultStatus.PENDING)
+                .resultState(ResultState.NOT_YET_SCOREABLE)
                 .focusLossCount(session.getFocusLossCount())
                 .build();
         testResultRepository.save(result);
     }
 
     /**
-     * Computes the raw item score for a single scoring key item supporting all
-     * four psychometric question types.
-     *
-     * <ul>
-     *   <li><b>CHOICE_SINGLE / FORCED_CHOICE</b> — 1.0 if the selected answer matches
-     *       {@code correctAnswer}; otherwise 0.0.</li>
-     *   <li><b>CHOICE_MULTIPLE</b> — full or partial credit depending on
-     *       {@link ScoringKeyItem#isPartialCredit()}.</li>
-     *   <li><b>ADJECTIVE_CHECKLIST</b> — count of selected adjectives (raw count
-     *       before weight application).</li>
-     *   <li><b>SCALE / PERSONALITY</b> — scale value with optional REVERSE direction.</li>
-     * </ul>
-     *
-     * @return the weighted-ready item value, or {@code Double.NaN} if the item was not answered
-     */
-    private double computeItemScore(ScoringKeyItem item,
-                                    List<AnswerChoice> choiceAnswers,
-                                    AnswerScale scaleAnswer,
-                                    AnswerAdjective adjectiveAnswer,
-                                    List<UUID> correctAnswerIds) {
-        QuestionType qType = item.getQuestion().getQuestionType();
-
-        return switch (qType) {
-            case CHOICE_SINGLE, FORCED_CHOICE -> {
-                // Single correct answer keyed by ScoringKeyItem.correctAnswer
-                if (choiceAnswers.isEmpty()) yield Double.NaN;
-                if (item.getCorrectAnswer() == null) yield Double.NaN;
-                boolean correct = item.getCorrectAnswer().getId()
-                        .equals(choiceAnswers.get(0).getCandidateAnswer().getId());
-                yield correct ? 1.0 : 0.0;
-            }
-            case CHOICE_MULTIPLE -> {
-                if (choiceAnswers.isEmpty()) yield Double.NaN;
-                if (correctAnswerIds.isEmpty()) yield 0.0; // no key defined → 0
-                Set<UUID> selectedIds = choiceAnswers.stream()
-                        .map(ac -> ac.getCandidateAnswer().getId())
-                        .collect(Collectors.toSet());
-                Set<UUID> keySet = new HashSet<>(correctAnswerIds);
-                if (!item.isPartialCredit()) {
-                    // All-or-nothing: exact match required
-                    yield selectedIds.equals(keySet) ? 1.0 : 0.0;
-                } else {
-                    // Partial credit: +1 per correct, -0.25 per incorrect, ≥ 0
-                    long correctCount = selectedIds.stream().filter(keySet::contains).count();
-                    long incorrectCount = selectedIds.stream().filter(id -> !keySet.contains(id)).count();
-                    yield Math.max(0.0, correctCount - 0.25 * incorrectCount);
-                }
-            }
-            case ADJECTIVE_CHECKLIST -> {
-                if (adjectiveAnswer == null) yield Double.NaN;
-                // Score = count of selected adjectives (weight applied by caller)
-                yield (double) adjectiveAnswer.getSelected().size();
-            }
-            default -> {
-                // SCALE / PERSONALITY
-                if (scaleAnswer == null) yield Double.NaN;
-                int value = scaleAnswer.getValue();
-                if (item.getDirection() == ScoreDirection.REVERSE) {
-                    value = scaleAnswer.getMaxValue() + scaleAnswer.getMinValue() - value;
-                }
-                yield (double) value;
-            }
-        };
-    }
-
-    /**
-     * Converts the accumulated bucket into a final raw score per the scale's scoring method.
-     *
-     * <p>bucket: [0]=weightedSum, [1]=weightSum, [2]=itemsAnswered, [3]=itemsTotal
-     */
-    private double computeScaleRaw(PsychometricScale scale, double[] bucket) {
-        if (bucket[2] == 0) return 0.0; // no items answered → 0
-        if (scale.getScoreMethod() == ScoreMethod.MEAN && bucket[1] > 0) {
-            return bucket[0] / bucket[1]; // weighted mean
-        }
-        return bucket[0]; // weighted sum (default)
-    }
-
-    /**
      * Computes weighted competency scores from the scale sten scores just persisted.
      *
      * <p>Each competency aggregates the sten scores of its contributing scales weighted
-     * by {@link CompetencyScaleWeight}. REVERSE direction inverts the sten (11 - sten).
+     * by {@link CompetencyScaleWeight}. REVERSE direction inverts the sten ({@code 11 - sten}).
      * The final score is clamped to [0, 10] and stored with 3 decimal places.
      */
     private void scoreCompetencies(TestResult result, List<ScaleScore> scaleScores) {
@@ -377,8 +427,9 @@ public class ScoringService {
                     for (CompetencyScaleWeight w : cWeights) {
                         BigDecimal sten = stenByScale.get(w.getScale().getId());
                         if (sten == null) continue;
+                        double stenValue = sten.doubleValue();
                         double raw = w.getDirection() == ScoreDirection.REVERSE
-                                ? (11.0 - sten.doubleValue()) : sten.doubleValue();
+                                ? (11.0 - stenValue) : stenValue;
                         weightedSum += raw * w.getWeight().doubleValue();
                         totalWeight += w.getWeight().doubleValue();
                     }
@@ -390,58 +441,5 @@ public class ScoringService {
                             .score(BigDecimal.valueOf(normalized).setScale(3, RoundingMode.HALF_UP))
                             .build());
                 });
-    }
-
-    /**
-     * Rolls up leaf raw scores into parent scales using a topological ordering so that
-     * scales at greater depth (closer to root) are always computed after all of their
-     * children — correctly handling hierarchies of arbitrary depth.
-     *
-     * <p>Algorithm: Kahn-style BFS. Start with parents whose entire child set is already
-     * in {@code computed}. Each promoted parent is then available as a child for its own
-     * parent in the next iteration.
-     */
-    private void rollupParentScores(List<PsychometricScale> allScales,
-                                    Map<UUID, BigDecimal> leafRawScores,
-                                    Map<UUID, BigDecimal> allRawScores) {
-        // Build parent → direct-children ID list
-        Map<UUID, List<UUID>> parentToChildren = new HashMap<>();
-        for (PsychometricScale s : allScales) {
-            if (s.getParentScale() != null) {
-                parentToChildren
-                        .computeIfAbsent(s.getParentScale().getId(), k -> new ArrayList<>())
-                        .add(s.getId());
-            }
-        }
-
-        // IDs of all scales that already have a score (leaf scores computed above)
-        Set<UUID> computed = new HashSet<>(leafRawScores.keySet());
-
-        // Remaining parent IDs that still need rollup — use LinkedHashSet for determinism
-        Set<UUID> remaining = new LinkedHashSet<>(parentToChildren.keySet());
-
-        while (!remaining.isEmpty()) {
-            boolean progress = false;
-            Iterator<UUID> it = remaining.iterator();
-            while (it.hasNext()) {
-                UUID parentId = it.next();
-                List<UUID> children = parentToChildren.getOrDefault(parentId, List.of());
-                if (computed.containsAll(children)) {
-                    // All children have scores — compute this parent now
-                    BigDecimal parentSum = children.stream()
-                            .map(cId -> allRawScores.getOrDefault(cId, BigDecimal.ZERO))
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    allRawScores.put(parentId, parentSum.setScale(3, RoundingMode.HALF_UP));
-                    computed.add(parentId);
-                    it.remove();
-                    progress = true;
-                }
-            }
-            if (!progress) {
-                // Guard against a cycle or disconnected parent — should not occur with valid data
-                log.warn("ScoringService: rollupParentScores could not resolve all parent scores; remaining={}", remaining);
-                break;
-            }
-        }
     }
 }

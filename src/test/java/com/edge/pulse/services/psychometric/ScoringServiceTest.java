@@ -222,11 +222,13 @@ class ScoringServiceTest {
     void scoreSession_withParametricNorm_appliesStandardizedScore() {
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
         AnswerScale answer = buildScaleAnswer(3, 1, 5);
-        // raw = 3 (value 3, FORWARD, weight 1). mean=3, sd=1 → z=0 → sten=6, percentile=50.00
+        // raw = 3 (value 3, FORWARD, weight 1). mean=3, sd=1 → z=0 → sten=5.5 (decimal), percentile=50.00
         NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID()).build();
         NormScaleParam param = NormScaleParam.builder()
                 .normTable(norm).scale(scale)
-                .mean(new BigDecimal("3")).sd(new BigDecimal("1")).build();
+                .mean(new BigDecimal("3")).sd(new BigDecimal("1"))
+                .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build();
 
         setupFullScoreScenario(List.of(item), Map.of(questionId, answer), Map.of());
         when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
@@ -240,7 +242,7 @@ class ScoringServiceTest {
         verify(scaleScoreRepository, atLeastOnce()).save(captor.capture());
         ScaleScore ss = captor.getAllValues().stream()
                 .filter(s -> s.getScale().getId().equals(scaleId)).findFirst().orElseThrow();
-        assertThat(ss.getStenScore()).isEqualByComparingTo(new BigDecimal("6"));
+        assertThat(ss.getStenScore()).isEqualByComparingTo(new BigDecimal("5.5"));
         assertThat(ss.getPercentile()).isEqualByComparingTo(new BigDecimal("50.00"));
         assertThat(ss.getZScore()).isEqualByComparingTo("0.000");
     }
@@ -265,15 +267,17 @@ class ScoringServiceTest {
 
     @Test
     void scoreCompetencies_computesWeightedNormalizedScore_forwardDirection() {
-        // Arrange: one personality item → sten=7 via parametric norm.
-        // raw=3 (value 3, FORWARD, weight 1); mean=2, sd=2 → z=0.5 → sten=round(6.5)=7
+        // Arrange: one personality item → sten=6.5 via parametric norm (decimal STEN).
+        // raw=3 (value 3, FORWARD, weight 1); mean=2, sd=2 → z=0.5 → sten=5.5+2*0.5=6.5
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
         AnswerScale answer = buildScaleAnswer(3, 1, 5);
 
         NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID()).build();
         NormScaleParam param = NormScaleParam.builder()
                 .normTable(norm).scale(scale)
-                .mean(new BigDecimal("2")).sd(new BigDecimal("2")).build();
+                .mean(new BigDecimal("2")).sd(new BigDecimal("2"))
+                .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build();
 
         setupFullScoreScenario(List.of(item), Map.of(questionId, answer), Map.of());
         when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
@@ -294,22 +298,24 @@ class ScoringServiceTest {
 
         ArgumentCaptor<CompetencyScore> captor = ArgumentCaptor.forClass(CompetencyScore.class);
         verify(competencyScoreRepository).save(captor.capture());
-        // sten=7, FORWARD → normalized = 7.0/1.0 = 7.0 (weight=1, weightedSum=7)
-        assertThat(captor.getValue().getScore()).isEqualByComparingTo(new BigDecimal("7.000"));
+        // sten=6.5, FORWARD → normalized = 6.5/1.0 = 6.5 (weight=1, weightedSum=6.5)
+        assertThat(captor.getValue().getScore()).isEqualByComparingTo(new BigDecimal("6.500"));
         assertThat(captor.getValue().getCompetency()).isEqualTo(competency);
     }
 
     @Test
     void scoreCompetencies_reverseDirection_invertsStens() {
-        // Arrange: sten=3, REVERSE → 11-3=8.
-        // raw=1 (value 1, FORWARD, weight 1); mean=6, sd=4 → z=-1.25 → sten=round(3.0)=3
+        // Arrange: sten=3.0, REVERSE → 11-3=8.
+        // raw=1 (value 1, FORWARD, weight 1); mean=6, sd=4 → z=-1.25 → sten=5.5+2*(-1.25)=3.0
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
         AnswerScale answer = buildScaleAnswer(1, 1, 5);
 
         NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID()).build();
         NormScaleParam param = NormScaleParam.builder()
                 .normTable(norm).scale(scale)
-                .mean(new BigDecimal("6")).sd(new BigDecimal("4")).build();
+                .mean(new BigDecimal("6")).sd(new BigDecimal("4"))
+                .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build();
 
         setupFullScoreScenario(List.of(item), Map.of(questionId, answer), Map.of());
         when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
