@@ -63,4 +63,48 @@ class ItemStrategyTest {
         assertThat(ItemStrategies.of(ItemStrategyType.LIKERT_VALUE)
                 .score(cfg(ItemStrategyType.LIKERT_VALUE, ScoreDirection.FORWARD), r)).isNaN();
     }
+
+    // Fix 1: OptionTaggedTally — non-matching scale returns NaN, matching returns 1.0
+    @Test
+    void optionTaggedTally_scaleMatchesTag_returns1() {
+        UUID tagScale = UUID.randomUUID();
+        var item = new ItemConfig(q, tagScale, ItemStrategyType.OPTION_TAGGED_TALLY,
+                ScoreDirection.FORWARD, 1.0, null, null, false, null);
+        var r = new ItemResponse(q, null, null, null, null, tagScale, null);
+        assertThat(ItemStrategies.of(ItemStrategyType.OPTION_TAGGED_TALLY).score(item, r)).isEqualTo(1.0);
+    }
+
+    @Test
+    void optionTaggedTally_scaleDiffersFromTag_returnsNaN() {
+        UUID itemScale = UUID.randomUUID();
+        UUID otherScale = UUID.randomUUID();
+        var item = new ItemConfig(q, itemScale, ItemStrategyType.OPTION_TAGGED_TALLY,
+                ScoreDirection.FORWARD, 1.0, null, null, false, null);
+        var r = new ItemResponse(q, null, null, null, null, otherScale, null);
+        assertThat(ItemStrategies.of(ItemStrategyType.OPTION_TAGGED_TALLY).score(item, r)).isNaN();
+    }
+
+    @Test
+    void optionTaggedTally_nullTagScaleId_returnsNaN() {
+        var item = new ItemConfig(q, scale, ItemStrategyType.OPTION_TAGGED_TALLY,
+                ScoreDirection.FORWARD, 1.0, null, null, false, null);
+        var r = new ItemResponse(q, null, null, null, null, null, null);
+        assertThat(ItemStrategies.of(ItemStrategyType.OPTION_TAGGED_TALLY).score(item, r)).isNaN();
+    }
+
+    // Fix 4: LikertValue REVERSE with null scaleMax/scaleMin returns NaN
+    @Test
+    void likertReverse_nullScaleMax_returnsNaN() {
+        var r = new ItemResponse(q, 2, null, null, null, null, null);
+        assertThat(ItemStrategies.of(ItemStrategyType.LIKERT_VALUE)
+                .score(cfg(ItemStrategyType.LIKERT_VALUE, ScoreDirection.REVERSE), r)).isNaN();
+    }
+
+    // Fix 5: BinaryForcedChoice out-of-range (e.g. 3) returns NaN
+    @Test
+    void binaryForcedChoice_outOfRange_returnsNaN() {
+        var r = new ItemResponse(q, 3, 1, 2, null, null, null);
+        assertThat(ItemStrategies.of(ItemStrategyType.BINARY_FORCED_CHOICE)
+                .score(cfg(ItemStrategyType.BINARY_FORCED_CHOICE, ScoreDirection.FORWARD), r)).isNaN();
+    }
 }

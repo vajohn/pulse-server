@@ -10,7 +10,10 @@ public class LikertValueStrategy implements ItemStrategy {
     public double score(ItemConfig item, ItemResponse r) {
         if (r == null || r.scaleValue() == null) return Double.NaN;
         int v = r.scaleValue();
-        if (item.direction() == ScoreDirection.REVERSE) v = r.scaleMax() + r.scaleMin() - v;
+        if (item.direction() == ScoreDirection.REVERSE) {
+            if (r.scaleMax() == null || r.scaleMin() == null) return Double.NaN;
+            v = r.scaleMax() + r.scaleMin() - v;
+        }
         return v;
     }
 }

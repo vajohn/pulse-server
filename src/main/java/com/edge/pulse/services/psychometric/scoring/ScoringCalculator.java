@@ -13,6 +13,8 @@ import java.util.*;
 /** Pure scoring orchestration: config + responses -> per-scale scores. No JPA, no Spring. */
 public class ScoringCalculator {
 
+    private static final System.Logger LOG = System.getLogger(ScoringCalculator.class.getName());
+
     public ScoringOutput calculate(ScoringInput in) {
         Map<UUID, ScaleConfig> scaleById = new LinkedHashMap<>();
         in.scales().forEach(s -> scaleById.put(s.scaleId(), s));
@@ -35,7 +37,7 @@ public class ScoringCalculator {
             double[] b = e.getValue();
             double raw = (b[2] == 0) ? 0.0
                     : (sc != null && sc.scoreMethod() == ScoreMethod.MEAN && b[1] > 0) ? b[0] / b[1] : b[0];
-            rawByScale.put(e.getKey(), BigDecimal.valueOf(raw).setScale(3, RoundingMode.HALF_UP));
+            rawByScale.put(e.getKey(), BigDecimal.valueOf(raw).setScale(3, RoundingMode.HALF_EVEN));
             countsByScale.put(e.getKey(), new int[]{(int) b[2], (int) b[3]});
         }
 
@@ -83,13 +85,17 @@ public class ScoringCalculator {
                 if (done.containsAll(kids)) {
                     BigDecimal sum = kids.stream().map(k -> raw.getOrDefault(k, BigDecimal.ZERO))
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    raw.put(p, sum.setScale(3, RoundingMode.HALF_UP));
+                    raw.put(p, sum.setScale(3, RoundingMode.HALF_EVEN));
                     int ans = kids.stream().mapToInt(k -> counts.getOrDefault(k, new int[]{0,0})[0]).sum();
                     int tot = kids.stream().mapToInt(k -> counts.getOrDefault(k, new int[]{0,0})[1]).sum();
                     counts.put(p, new int[]{ans, tot});
                     done.add(p); it.remove(); progress = true;
                 }
             }
+        }
+        if (!targets.isEmpty()) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "Unresolved composite scales (missing children): " + targets);
         }
     }
 
@@ -112,6 +118,10 @@ public class ScoringCalculator {
                     it.remove(); progress = true;
                 }
             }
+        }
+        if (!targets.isEmpty()) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "Unresolved composite scales (missing children): " + targets);
         }
     }
 }

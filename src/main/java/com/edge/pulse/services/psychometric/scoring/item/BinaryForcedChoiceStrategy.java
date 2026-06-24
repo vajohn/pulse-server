@@ -11,6 +11,7 @@ public class BinaryForcedChoiceStrategy implements ItemStrategy {
     public double score(ItemConfig item, ItemResponse r) {
         if (r == null || r.scaleValue() == null) return Double.NaN;
         int v = r.scaleValue();              // 1 or 2
+        if (v < 1 || v > 2) return Double.NaN;
         double fwd = (v == 1) ? 1.0 : 0.0;
         return item.direction() == ScoreDirection.REVERSE ? (1.0 - fwd) : fwd;
     }
