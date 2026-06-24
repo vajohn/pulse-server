@@ -30,4 +30,13 @@ class CsvReaderTest {
         String csv = "h\n\nv\n";
         assertThat(CsvReader.parse(csv)).hasSize(1);
     }
+
+    @Test
+    void quotedEmptyCells_notDroppedAsBlankLine() {
+        // A row with only quoted-empty cells must survive the rowHasContent guard
+        String csv = "h1,h2\n\"\",\"\"\n";
+        List<Map<String, String>> rows = CsvReader.parse(csv);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)).containsEntry("h1", "").containsEntry("h2", "");
+    }
 }

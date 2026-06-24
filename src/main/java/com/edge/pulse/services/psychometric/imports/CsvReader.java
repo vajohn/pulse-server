@@ -41,7 +41,7 @@ public final class CsvReader {
                 } else cur.append(ch);
             } else {
                 switch (ch) {
-                    case '"' -> inQuotes = true;
+                    case '"' -> { inQuotes = true; rowHasContent = true; }
                     case ',' -> { fields.add(cur.toString()); cur.setLength(0); rowHasContent = true; }
                     case '\r' -> { /* ignore; handled by \n */ }
                     case '\n' -> {

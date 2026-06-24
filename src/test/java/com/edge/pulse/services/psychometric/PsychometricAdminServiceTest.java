@@ -513,7 +513,7 @@ class PsychometricAdminServiceTest {
 
         when(testRepository.findById(testId)).thenReturn(Optional.of(test));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(normTableVersionRepository.findByTestId(testId)).thenReturn(List.of());
+        when(normTableVersionRepository.findMaxVersionByTestId(testId)).thenReturn(Optional.empty());
         when(normTableVersionRepository.save(any())).thenAnswer(inv -> {
             var n = (NormTableVersion) inv.getArgument(0);
             return n;

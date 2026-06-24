@@ -770,12 +770,13 @@ public class PsychometricAdminService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Test not found: " + testId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "User not found: " + userId));
 
         normTableVersionRepository.deprecateValidatedNormsByTestId(testId);
 
-        int nextVersion = normTableVersionRepository.findByTestId(testId).size() + 1;
+        int nextVersion = normTableVersionRepository.findMaxVersionByTestId(testId)
+                .map(v -> v + 1).orElse(1);
 
         NormTableVersion table = normTableVersionRepository.save(
                 NormTableVersion.builder()
