@@ -18,7 +18,12 @@ import com.edge.pulse.repositories.QuestionRepository;
 import com.edge.pulse.repositories.ResponseSessionRepository;
 import com.edge.pulse.repositories.FormAssignmentRepository;
 import com.edge.pulse.repositories.UserRepository;
+import com.edge.pulse.data.enums.ResultMode;
+import com.edge.pulse.data.enums.ScaleProgressState;
+import com.edge.pulse.data.models.psychometric.PsychometricScale;
+import com.edge.pulse.repositories.psychometric.PsychometricScaleRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricTestRepository;
+import com.edge.pulse.repositories.psychometric.ScaleProgressRepository;
 import com.edge.pulse.repositories.psychometric.ScoringKeyItemRepository;
 import com.edge.pulse.repositories.psychometric.ScoringKeyVersionRepository;
 import com.edge.pulse.repositories.psychometric.TestResultRepository;
@@ -66,6 +71,8 @@ public class PsychometricSessionService {
     private final TestResultRepository resultRepository;
     private final ScoringKeyVersionRepository scoringKeyVersionRepository;
     private final ScoringKeyItemRepository scoringKeyItemRepository;
+    private final ScaleProgressRepository scaleProgressRepository;
+    private final PsychometricScaleRepository scaleRepository;
     private final Clock clock;
 
     /**
@@ -301,15 +308,42 @@ public class PsychometricSessionService {
     }
 
     private CandidateTestResultDto toResultDto(TestResult r) {
+        UUID testId = r.getTest().getId();
+        UUID resultUserId = (r.getSession() != null && r.getSession().getUser() != null)
+                ? r.getSession().getUser().getId() : null;
+
+        // "N of M check-ins": M = the test's CONSOLIDATED scales, N = those already in the
+        // CONSOLIDATED state for this user. Both default 0 for non-micro tests (no CONSOLIDATED
+        // scales) so the completion screen omits the line.
+        List<PsychometricScale> consolidatedScales = scaleRepository.findByTestId(testId).stream()
+                .filter(s -> s.getResultMode() == ResultMode.CONSOLIDATED)
+                .toList();
+        int scalesTotal = consolidatedScales.size();
+        int scalesConsolidated = 0;
+        if (scalesTotal > 0 && resultUserId != null) {
+            java.util.Set<UUID> consolidatedScaleIds = scaleProgressRepository
+                    .findByUserIdAndTestId(resultUserId, testId).stream()
+                    .filter(p -> p.getState() == ScaleProgressState.CONSOLIDATED)
+                    .map(com.edge.pulse.data.models.psychometric.ScaleProgress::getScaleId)
+                    .collect(Collectors.toSet());
+            for (PsychometricScale s : consolidatedScales) {
+                if (consolidatedScaleIds.contains(s.getId())) {
+                    scalesConsolidated++;
+                }
+            }
+        }
+
         return new CandidateTestResultDto(
                 r.getId(),
-                r.getTest().getId(),
+                testId,
                 r.getTest().getName(),
                 r.getTest().getTestType().name(),
                 r.getStatus(),
                 r.getResultState(),
                 r.getSession().getCompletedAt(),
                 r.getScoredAt(),
-                r.getFocusLossCount());
+                r.getFocusLossCount(),
+                scalesConsolidated,
+                scalesTotal);
     }
 }

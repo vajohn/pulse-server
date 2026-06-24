@@ -31,7 +31,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -128,6 +132,9 @@ class MicroEngagementServiceTest {
         when(cadenceRepository.findById(cadenceId)).thenReturn(Optional.of(cadence));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(assignmentRepository.hasVisibleAssignment(formId, userId, "EDGE.UNIT.TEAM")).thenReturn(true);
+        // No in-progress session for this user+form → check-in proceeds (C2 guard passes).
+        when(sessionRepository.findFirstByUserIdAndFormIdAndCompletedAtIsNullOrderByStartedAtDesc(userId, formId))
+                .thenReturn(Optional.empty());
 
         ScoringKeyVersion key = ScoringKeyVersion.builder()
                 .id(UUID.randomUUID()).test(test).version(1).status(ScoringKeyStatus.ACTIVE).build();
@@ -174,6 +181,30 @@ class MicroEngagementServiceTest {
         verify(exposureRepository, times(3)).save(eCap.capture());
         assertThat(eCap.getAllValues()).allMatch(e -> e.getFirstSeen() != null
                 && e.getUserId().equals(userId) && e.getTestId().equals(testId));
+    }
+
+    @Test
+    void buildCheckInSession_rejectsWhenUserHasOpenSession_with409() {
+        when(cadenceRepository.findById(cadenceId)).thenReturn(Optional.of(cadence));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(assignmentRepository.hasVisibleAssignment(formId, userId, "EDGE.UNIT.TEAM")).thenReturn(true);
+
+        // An OPEN (completed_at IS NULL) session already exists for this user+form (e.g. a
+        // regular take in progress) → a check-in must NOT overwrite its item sequence (C2).
+        ResponseSession openSession = ResponseSession.builder().id(UUID.randomUUID())
+                .form(test.getForm()).user(user).build();
+        when(sessionRepository.findFirstByUserIdAndFormIdAndCompletedAtIsNullOrderByStartedAtDesc(userId, formId))
+                .thenReturn(Optional.of(openSession));
+
+        assertThatThrownBy(() -> service.buildCheckInSession(cadenceId, userId))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+
+        // No session was opened / narrowed and no exposure was recorded.
+        verify(sessionService, never()).startSession(any(), any());
+        verify(sessionRepository, never()).save(any());
+        verify(exposureRepository, never()).save(any());
     }
 
     private ScoringKeyItem keyItem(PsychometricScale scale, UUID questionId) {

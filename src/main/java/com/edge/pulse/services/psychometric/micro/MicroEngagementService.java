@@ -133,6 +133,16 @@ public class MicroEngagementService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
+        // Reject if the user already has an OPEN (completed_at IS NULL) session for this form.
+        // A check-in narrows the session's itemSequence to the sampled ids; if a regular take is
+        // in progress this would overwrite its item sequence and corrupt that take (C2).
+        if (sessionRepository
+                .findFirstByUserIdAndFormIdAndCompletedAtIsNullOrderByStartedAtDesc(userId, formId)
+                .isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Finish or abandon your in-progress assessment before starting a check-in");
+        }
+
         // ── Build the sampler input from the ACTIVE scoring key's items ────────────
         ScoringKeyVersion key = scoringKeyVersionRepository
                 .findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE)

@@ -40,6 +40,8 @@ class ScoringServiceTest {
     @Mock ScoringKeyCorrectAnswerRepository scoringKeyCorrectAnswerRepository;
     @Mock CompetencyScaleWeightRepository competencyScaleWeightRepository;
     @Mock CompetencyScoreRepository competencyScoreRepository;
+    @Mock UserItemExposureRepository userItemExposureRepository;
+    @Mock ScaleProgressRepository scaleProgressRepository;
 
     @InjectMocks ScoringService scoringService;
 
@@ -816,5 +818,85 @@ class ScoringServiceTest {
         // scaleI: tag does not match → NaN → itemsAnswered=0, rawScore=0.000
         assertThat(ssI.getRawScore()).isEqualByComparingTo(new BigDecimal("0.000"));
         assertThat(ssI.getItemsAnswered()).isEqualTo(0);
+    }
+
+    // ── C1: itemsCollected must be capped at itemsRequired across accrual calls ───────
+
+    /**
+     * Regression for C1: re-answering a CONSOLIDATED scale's items across multiple sessions
+     * (a regular take followed by check-ins) must never push {@code itemsCollected} past
+     * {@code itemsRequired}. Drives {@code accrueExposureAndProgress} twice (same single-item
+     * scale, same answer) and asserts the persisted progress never exceeds the requirement.
+     */
+    @Test
+    void accrueProgress_neverExceedsItemsRequired_acrossTwoAccrualCalls() {
+        // CONSOLIDATED scale with a single scoring-key item (itemsRequired = 1).
+        UUID userId = UUID.randomUUID();
+        User candidate = User.builder().id(userId).build();
+        session.setUser(candidate);
+
+        PsychometricScale consolidatedScale = PsychometricScale.builder()
+                .id(UUID.randomUUID()).test(psychTest).name("Consolidating")
+                .scoreMethod(ScoreMethod.SUM)
+                .resultMode(ResultMode.CONSOLIDATED)
+                .build();
+        Question q = Question.builder().id(questionId).questionType(QuestionType.SCALE).build();
+        ScoringKeyItem item = ScoringKeyItem.builder()
+                .id(UUID.randomUUID()).scale(consolidatedScale).question(q)
+                .direction(ScoreDirection.FORWARD).weight(BigDecimal.ONE).build();
+        AnswerScale answer = buildScaleAnswer(3, 1, 5);
+
+        when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
+        when(testResultRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(scoringKeyVersionRepository.findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE))
+                .thenReturn(Optional.of(activeKey));
+        when(scoringKeyItemRepository.findByScoringKeyIdWithDetails(activeKey.getId()))
+                .thenReturn(List.of(item));
+        when(answerScaleRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of(answer));
+        when(answerChoiceRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(consolidatedScale));
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.empty());
+        TestResult savedResult = TestResult.builder().id(UUID.randomUUID())
+                .status(TestResultStatus.SCORED).scoringKeyVersion(activeKey).build();
+        when(testResultRepository.save(any())).thenReturn(savedResult);
+        lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
+        lenient().when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Exposure upsert returns empty (fresh), accepts saves.
+        when(userItemExposureRepository.findById(any())).thenReturn(Optional.empty());
+        when(userItemExposureRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Simulate persistence of the COLLECTING window between the two accrual calls:
+        // first call sees no existing progress; second call sees the row saved by the first.
+        List<ScaleProgress> persisted = new ArrayList<>();
+        when(scaleProgressRepository.findByUserIdAndTestId(userId, testId))
+                .thenAnswer(inv -> new ArrayList<>(persisted));
+        when(scaleProgressRepository.save(any(ScaleProgress.class))).thenAnswer(inv -> {
+            ScaleProgress p = inv.getArgument(0);
+            persisted.removeIf(existing -> existing.getScaleId().equals(p.getScaleId()));
+            persisted.add(p);
+            return p;
+        });
+
+        // First accrual: collects the 1 item → itemsCollected = 1 = itemsRequired.
+        scoringService.scoreSession(session);
+        ScaleProgress afterFirst = persisted.get(0);
+        assertThat(afterFirst.getItemsRequired()).isEqualTo(1);
+        assertThat(afterFirst.getItemsCollected()).isLessThanOrEqualTo(afterFirst.getItemsRequired());
+
+        // The window consolidated on the first call; force it back to COLLECTING so the second
+        // accrual would (pre-fix) add another item and overflow itemsCollected to 2.
+        afterFirst.setState(ScaleProgressState.COLLECTING);
+
+        // Second accrual with the same item answered again — must stay capped at itemsRequired.
+        scoringService.scoreSession(session);
+        ScaleProgress afterSecond = persisted.get(0);
+        assertThat(afterSecond.getItemsCollected())
+                .as("itemsCollected must never exceed itemsRequired (C1)")
+                .isLessThanOrEqualTo(afterSecond.getItemsRequired());
+        assertThat(afterSecond.getItemsCollected()).isEqualTo(1);
     }
 }

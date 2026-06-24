@@ -60,6 +60,8 @@ class PsychometricSessionServiceTest {
     @Mock TestResultRepository resultRepository;
     @Mock com.edge.pulse.repositories.psychometric.ScoringKeyVersionRepository scoringKeyVersionRepository;
     @Mock com.edge.pulse.repositories.psychometric.ScoringKeyItemRepository scoringKeyItemRepository;
+    @Mock com.edge.pulse.repositories.psychometric.ScaleProgressRepository scaleProgressRepository;
+    @Mock com.edge.pulse.repositories.psychometric.PsychometricScaleRepository scaleRepository;
     @Mock Clock clock;
 
     @InjectMocks PsychometricSessionService service;
@@ -309,6 +311,8 @@ class PsychometricSessionServiceTest {
         when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
         when(sessionService.completeSession(sessionId, userId)).thenReturn(session);
         when(resultRepository.findBySessionId(sessionId)).thenReturn(Optional.of(result));
+        // Non-micro test → no CONSOLIDATED scales → N-of-M defaults to 0/0.
+        when(scaleRepository.findByTestId(psychTest.getId())).thenReturn(List.of());
 
         SubmitAnswerRequest answer = new SubmitAnswerRequest(
                 UUID.randomUUID(), QuestionType.SCALE, null, 3, 1, 5, null, null, null, null);
@@ -383,6 +387,7 @@ class PsychometricSessionServiceTest {
         when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
         when(sessionService.completeSession(sessionId, userId)).thenReturn(timedSession);
         when(resultRepository.findBySessionId(sessionId)).thenReturn(Optional.of(result));
+        when(scaleRepository.findByTestId(psychTest.getId())).thenReturn(List.of());
 
         BatchSubmitRequest request = new BatchSubmitRequest(List.of());
         CandidateTestResultDto dto = service.completeSession(sessionId, userId, request);

@@ -174,7 +174,11 @@ public class CandidatePsychometricService {
                 r.getResultState(),
                 r.getSession().getCompletedAt(),
                 r.getScoredAt(),
-                r.getFocusLossCount()
+                r.getFocusLossCount(),
+                // N-of-M check-in progress is surfaced only on the completion screen
+                // (PsychometricSessionService#toResultDto), not in the result-history summary.
+                0,
+                0
         );
     }
 

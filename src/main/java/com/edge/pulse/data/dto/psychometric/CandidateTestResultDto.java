@@ -18,5 +18,11 @@ public record CandidateTestResultDto(
         ResultState resultState,
         LocalDateTime completedAt,
         LocalDateTime scoredAt,
-        int focusLossCount
+        int focusLossCount,
+        /** Micro-engagement progress for the candidate completion "N of M check-ins" line:
+         *  number of this test's CONSOLIDATED scales already in CONSOLIDATED state for the user.
+         *  Both default 0 for non-micro tests. */
+        int scalesConsolidated,
+        /** Total CONSOLIDATED scales on this test (the "M" in "N of M"). 0 for non-micro tests. */
+        int scalesTotal
 ) {}

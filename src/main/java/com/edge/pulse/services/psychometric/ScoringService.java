@@ -545,6 +545,9 @@ public class ScoringService {
             ScaleProgress p = existingByScale.get(s.getId());
             if (p == null) {
                 // Open a new consolidation window; freeze the norm version (D4).
+                // Note: if a prior window for this scale already reached CONSOLIDATED, opening a
+                // fresh COLLECTING window here is an intentional new consolidation cycle (I3) —
+                // the previous CONSOLIDATED row is retained as history; we do not reset/reuse it.
                 p = ScaleProgress.builder()
                         .userId(userId).scaleId(s.getId()).testId(test.getId())
                         .windowId(UUID.randomUUID())
@@ -557,7 +560,10 @@ public class ScoringService {
             }
             int answered = answeredThisSessionByScale.getOrDefault(s.getId(), 0);
             if (answered > 0) {
-                p.setItemsCollected(p.getItemsCollected() + answered);
+                // Cap at itemsRequired: re-answering the same scale across multiple sessions
+                // (e.g. a regular take followed by check-ins) must never push collected past
+                // the requirement, otherwise the "N of M" progress would exceed M (C1).
+                p.setItemsCollected(Math.min(p.getItemsRequired(), p.getItemsCollected() + answered));
             }
             p = scaleProgressRepository.save(p);
             progressByScale.put(s.getId(), p);

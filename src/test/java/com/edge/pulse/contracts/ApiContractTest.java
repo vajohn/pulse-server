@@ -316,7 +316,9 @@ class ApiContractTest {
                 com.edge.pulse.data.enums.ResultState.PROVISIONAL,
                 LocalDateTime.of(2026, 3, 1, 10, 0),
                 LocalDateTime.of(2026, 3, 1, 10, 1),
-                0);
+                0,
+                2,
+                5);
 
         JsonNode node = mapper.readTree(mapper.writeValueAsString(dto));
 
@@ -329,6 +331,8 @@ class ApiContractTest {
         assertThat(node.has("completedAt")).isTrue();
         assertThat(node.has("scoredAt")).isTrue();
         assertThat(node.has("focusLossCount")).isTrue();
+        assertThat(node.get("scalesConsolidated").asInt()).isEqualTo(2);
+        assertThat(node.get("scalesTotal").asInt()).isEqualTo(5);
         // Status must be enum name string, not ordinal
         assertThat(node.get("status").asText()).isEqualTo("SCORED");
         assertThat(node.get("resultState").asText()).isEqualTo("PROVISIONAL");
