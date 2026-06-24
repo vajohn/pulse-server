@@ -668,6 +668,7 @@ public class PsychometricAdminService {
                             .scoringKey(key).question(question).scale(scale)
                             .direction(direction).weight(weight)
                             .correctAnswer(correctAnswer).partialCredit(req.partialCredit())
+                            .itemStrategy(req.itemStrategy())
                             .build());
 
             result.add(toScoringKeyItemDto(item));

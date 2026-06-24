@@ -375,7 +375,7 @@ class PsychometricAdminServiceTest {
         when(scoringKeyItemRepository.save(any())).thenReturn(savedItem);
         when(auditService.buildDetail(any(), any(), any(), any(), any(), any())).thenReturn("{}");
 
-        var request = new ScoringKeyItemRequest(questionId, scaleId, null, null, null, false);
+        var request = new ScoringKeyItemRequest(questionId, scaleId, null, null, null, false, null);
         var result = adminService.saveScoringKey(testId, List.of(request), userId);
 
         assertThat(result).hasSize(1);
@@ -405,7 +405,7 @@ class PsychometricAdminServiceTest {
         when(scaleRepository.findAllById(any())).thenReturn(List.of(scale));
         when(candidateAnswerRepository.findAllById(any())).thenReturn(List.of());
 
-        var request = new ScoringKeyItemRequest(questionId, scaleId, null, null, null, false);
+        var request = new ScoringKeyItemRequest(questionId, scaleId, null, null, null, false, null);
         assertThatThrownBy(() -> adminService.saveScoringKey(testId, List.of(request), userId))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
@@ -437,7 +437,7 @@ class PsychometricAdminServiceTest {
         when(scaleRepository.findAllById(any())).thenReturn(List.of(wrongScale));
         when(candidateAnswerRepository.findAllById(any())).thenReturn(List.of());
 
-        var request = new ScoringKeyItemRequest(questionId, scaleId, null, null, null, false);
+        var request = new ScoringKeyItemRequest(questionId, scaleId, null, null, null, false, null);
         assertThatThrownBy(() -> adminService.saveScoringKey(testId, List.of(request), userId))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())

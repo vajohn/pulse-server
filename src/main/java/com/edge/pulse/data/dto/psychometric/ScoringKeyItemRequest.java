@@ -22,5 +22,11 @@ public record ScoringKeyItemRequest(
         /** Keyed correct answer for CHOICE_SINGLE; null for SCALE/ADJECTIVE/FORCED_CHOICE. */
         UUID correctAnswerId,
         /** Partial-credit mode for CHOICE_MULTIPLE items. */
-        boolean partialCredit
+        boolean partialCredit,
+        /**
+         * Scoring strategy for this item (e.g. LIKERT_VALUE, ANSWER_KEY_SINGLE,
+         * BINARY_FORCED_CHOICE, OPTION_TAGGED_TALLY). Nullable — existing UI callers
+         * pass null and the engine falls back to its per-question-type default.
+         */
+        com.edge.pulse.data.enums.ItemStrategyType itemStrategy
 ) {}
