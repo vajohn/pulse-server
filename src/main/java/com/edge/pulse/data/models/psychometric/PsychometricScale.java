@@ -70,4 +70,10 @@ public class PsychometricScale {
     @Column(name = "result_mode", nullable = false)
     @Builder.Default
     private ResultMode resultMode = ResultMode.IMMEDIATE;
+
+    /** CWB / validity scales (§6.3) are interpreter-only — NEVER aggregated or trended (D3).
+     *  Sourced from the import scoring-sheet `restricted` flag. */
+    @Column(name = "restricted", nullable = false)
+    @Builder.Default
+    private boolean restricted = false;
 }
