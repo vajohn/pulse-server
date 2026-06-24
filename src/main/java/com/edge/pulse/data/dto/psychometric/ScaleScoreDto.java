@@ -9,7 +9,9 @@ public record ScaleScoreDto(
         /** NULL when the visibility policy hides raw scores. */
         BigDecimal rawScore,
         /** NULL when the visibility policy hides the sten profile. */
-        Integer stenScore,
+        BigDecimal stenScore,
+        /** NULL until T-score has been computed; hidden when sten profile is hidden. */
+        BigDecimal tScore,
         /** NULL when the visibility policy hides percentile. */
         BigDecimal percentile,
         /** NULL when the visibility policy hides the sten profile (z-score is part of sten profile). */

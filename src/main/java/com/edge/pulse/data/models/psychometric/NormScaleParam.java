@@ -44,4 +44,24 @@ public class NormScaleParam {
 
     @Column(name = "sample_size")
     private Integer sampleSize;
+
+    /** Multiplier for T-score formula: T = tFactor * z + tOffset (default 10 = personality scale). */
+    @Column(name = "t_factor", nullable = false, precision = 6, scale = 3)
+    @Builder.Default
+    private BigDecimal tFactor = BigDecimal.TEN;
+
+    /** Offset for T-score formula (default 50 = personality scale). */
+    @Column(name = "t_offset", nullable = false, precision = 6, scale = 3)
+    @Builder.Default
+    private BigDecimal tOffset = new BigDecimal("50.000");
+
+    /** Lower clip bound for T-score (default 10). */
+    @Column(name = "t_clip_lo", nullable = false, precision = 6, scale = 2)
+    @Builder.Default
+    private BigDecimal tClipLo = new BigDecimal("10.00");
+
+    /** Upper clip bound for T-score (default 120). */
+    @Column(name = "t_clip_hi", nullable = false, precision = 6, scale = 2)
+    @Builder.Default
+    private BigDecimal tClipHi = new BigDecimal("120.00");
 }

@@ -223,6 +223,7 @@ public class CandidatePsychometricService {
                 ss.getScale().getName(),
                 showRaw  ? ss.getRawScore()   : null,
                 showSten ? ss.getStenScore()  : null,
+                showSten ? ss.getTScore()     : null,
                 showPct  ? ss.getPercentile() : null,
                 showSten ? ss.getZScore()     : null,
                 ss.getItemsAnswered(),

@@ -1,6 +1,8 @@
 package com.edge.pulse.data.models.psychometric;
 
+import com.edge.pulse.data.enums.ResultState;
 import com.edge.pulse.data.enums.TestResultStatus;
+import com.edge.pulse.data.enums.ValidityStatus;
 import com.edge.pulse.data.models.ResponseSession;
 import com.edge.pulse.data.models.User;
 import jakarta.persistence.*;
@@ -70,4 +72,15 @@ public class TestResult {
     @Column(name = "focus_loss_count", nullable = false)
     @Builder.Default
     private int focusLossCount = 0;
+
+    /** Lifecycle state for this result (computed by scoring engine; gated in later plans). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "result_state", nullable = false)
+    @Builder.Default
+    private ResultState resultState = ResultState.FINAL;
+
+    /** Validity screening outcome; NULL until a validity scale has been scored. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "validity_status")
+    private ValidityStatus validityStatus;
 }

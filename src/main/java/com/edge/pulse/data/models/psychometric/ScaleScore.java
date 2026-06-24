@@ -38,9 +38,13 @@ public class ScaleScore {
     @Column(name = "z_score", precision = 6, scale = 3)
     private BigDecimal zScore;
 
-    /** 1–10; NULL until normed. */
-    @Column(name = "sten_score")
-    private Integer stenScore;
+    /** 1–10 (decimal); NULL until normed. */
+    @Column(name = "sten_score", precision = 4, scale = 2)
+    private BigDecimal stenScore;
+
+    /** T-score; NULL until normed. */
+    @Column(name = "t_score", precision = 6, scale = 2)
+    private BigDecimal tScore;
 
     /** 0.00–99.99; NULL until normed. */
     @Column(precision = 5, scale = 2)

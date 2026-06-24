@@ -231,7 +231,7 @@ public class ScoringService {
                     .result(result)
                     .scale(scale)
                     .rawScore(rawScore)
-                    .stenScore(stenScore != null ? stenScore.intValue() : null)
+                    .stenScore(stenScore)
                     .percentile(percentile)
                     .zScore(zScore)
                     .itemsAnswered(itemsAnswered)
@@ -362,7 +362,7 @@ public class ScoringService {
      * The final score is clamped to [0, 10] and stored with 3 decimal places.
      */
     private void scoreCompetencies(TestResult result, List<ScaleScore> scaleScores) {
-        Map<UUID, Integer> stenByScale = scaleScores.stream()
+        Map<UUID, BigDecimal> stenByScale = scaleScores.stream()
                 .filter(ss -> ss.getStenScore() != null)
                 .collect(Collectors.toMap(ss -> ss.getScale().getId(), ScaleScore::getStenScore));
         if (stenByScale.isEmpty()) return;
@@ -376,10 +376,10 @@ public class ScoringService {
                 .forEach((competency, cWeights) -> {
                     double totalWeight = 0.0, weightedSum = 0.0;
                     for (CompetencyScaleWeight w : cWeights) {
-                        Integer sten = stenByScale.get(w.getScale().getId());
+                        BigDecimal sten = stenByScale.get(w.getScale().getId());
                         if (sten == null) continue;
                         double raw = w.getDirection() == ScoreDirection.REVERSE
-                                ? (11.0 - sten) : sten;
+                                ? (11.0 - sten.doubleValue()) : sten.doubleValue();
                         weightedSum += raw * w.getWeight().doubleValue();
                         totalWeight += w.getWeight().doubleValue();
                     }

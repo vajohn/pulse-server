@@ -41,9 +41,9 @@ public class NormEntry {
     @Column(precision = 5, scale = 2)
     private BigDecimal percentile;
 
-    /** 1–10 */
-    @Column(name = "sten_score")
-    private Integer stenScore;
+    /** 1–10 (decimal); NULL for entries without a STEN assignment. */
+    @Column(name = "sten_score", precision = 4, scale = 2)
+    private BigDecimal stenScore;
 
     @Column(name = "z_score", precision = 6, scale = 3)
     private BigDecimal zScore;

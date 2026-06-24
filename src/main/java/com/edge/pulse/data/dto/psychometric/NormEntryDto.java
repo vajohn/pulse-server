@@ -10,7 +10,7 @@ import java.util.UUID;
 public record NormEntryDto(
         UUID scaleId,
         String scaleName,
-        int stenScore,
+        BigDecimal stenScore,
         BigDecimal rawScoreMin,
         BigDecimal rawScoreMax,
         BigDecimal percentile,

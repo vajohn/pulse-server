@@ -1,5 +1,6 @@
 package com.edge.pulse.data.models.psychometric;
 
+import com.edge.pulse.data.enums.ItemStrategyType;
 import com.edge.pulse.data.enums.ScoreDirection;
 import com.edge.pulse.data.models.CandidateAnswer;
 import com.edge.pulse.data.models.Question;
@@ -55,6 +56,13 @@ public class ScoringKeyItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "correct_answer_id")
     private CandidateAnswer correctAnswer;
+
+    /**
+     * Override which item-scoring strategy to apply. NULL = derive from question_type at load time.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "item_strategy")
+    private ItemStrategyType itemStrategy;
 
     /**
      * Partial-credit mode for CHOICE_MULTIPLE items.

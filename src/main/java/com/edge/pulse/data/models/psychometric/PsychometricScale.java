@@ -1,5 +1,7 @@
 package com.edge.pulse.data.models.psychometric;
 
+import com.edge.pulse.data.enums.CompositeBasis;
+import com.edge.pulse.data.enums.CompositeMethod;
 import com.edge.pulse.data.enums.ScoreMethod;
 import jakarta.persistence.*;
 import lombok.*;
@@ -46,4 +48,14 @@ public class PsychometricScale {
     @Column(name = "display_order", nullable = false)
     @Builder.Default
     private int displayOrder = 0;
+
+    /** NULL = leaf scale scored directly from items; non-null = composite aggregated from children. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "composite_method")
+    private CompositeMethod compositeMethod;
+
+    /** Which score type children contribute when this scale is a composite. NULL for leaf scales. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "composite_basis")
+    private CompositeBasis compositeBasis;
 }

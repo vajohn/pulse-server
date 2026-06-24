@@ -1,6 +1,7 @@
 package com.edge.pulse.data.models.psychometric;
 
 import com.edge.pulse.data.enums.NormStatus;
+import com.edge.pulse.data.enums.NormStrategyType;
 import com.edge.pulse.data.models.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -42,6 +43,11 @@ public class NormTableVersion {
     @Column(nullable = false)
     @Builder.Default
     private NormStatus status = NormStatus.PROVISIONAL;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "norm_strategy", nullable = false)
+    @Builder.Default
+    private NormStrategyType normStrategy = NormStrategyType.PARAMETRIC;
 
     private LocalDateTime effectiveFrom;
     private LocalDateTime effectiveUntil;
