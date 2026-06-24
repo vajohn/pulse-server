@@ -1,5 +1,6 @@
 package com.edge.pulse.services.psychometric.imports;
 
+import com.edge.pulse.data.dto.AddQuestionRequest;
 import com.edge.pulse.data.dto.CandidateAnswerDto;
 import com.edge.pulse.data.dto.QuestionDto;
 import com.edge.pulse.data.dto.psychometric.PsychometricScaleDto;
@@ -67,6 +68,14 @@ class AssessmentImporterTest {
         return new QuestionDto(qId, "Stmt", "بيان", QuestionType.SCALE, 0,
                 null, null,
                 List.of(new CandidateAnswerDto(optId, "A", "أ", 0)),
+                null, null, false, null, null, null, null, null, null, null);
+    }
+
+    /** A SCALE question carries no candidate answers (answered via answer_scale.value). */
+    private static QuestionDto scaleQuestionDto(UUID qId) {
+        return new QuestionDto(qId, "Stmt", "بيان", QuestionType.SCALE, 0,
+                null, null,
+                List.of(),
                 null, null, false, null, null, null, null, null, null, null);
     }
 
@@ -223,6 +232,93 @@ class AssessmentImporterTest {
                 new ImportPackageRequest("VIP", null, TestType.PERSONALITY, null), pkg, UUID.randomUUID());
         assertThat(res.success()).isTrue();
         assertThat(res.items()).isEqualTo(2);
+    }
+
+    @Test
+    void likertValueItem_buildsScaleQuestionWithRangeAndNoOptions() {
+        UUID testId = UUID.randomUUID();
+        UUID qId = UUID.randomUUID();
+        UUID scaleId = UUID.randomUUID();
+
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        when(admin.addQuestion(eq(testId), any(), any())).thenReturn(scaleQuestionDto(qId));
+        when(admin.createScale(eq(testId), any(), any())).thenReturn(scaleDto(scaleId, "Extraversion"));
+
+        // 5-point Likert: values 1..5, lowest label "Strongly Disagree", highest "Strongly Agree".
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(new ParsedQuestion("Q1", "Stmt", "بيان",
+                        List.of(new ParsedOption("Strongly Disagree", "لا أوافق بشدة", 1, 0),
+                                new ParsedOption("Disagree", "لا أوافق", 2, 1),
+                                new ParsedOption("Neutral", "محايد", 3, 2),
+                                new ParsedOption("Agree", "أوافق", 4, 3),
+                                new ParsedOption("Strongly Agree", "أوافق بشدة", 5, 4)))),
+                List.of(new ScoringSheetScale("Extraversion", null, ScoreMethod.SUM,
+                        NormStrategyType.EMPIRICAL_PERCENTILE,
+                        null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(new ScoringSheetItem("Q1", "Extraversion", ScoreDirection.FORWARD,
+                        ItemStrategyType.LIKERT_VALUE, 1.0, null)),
+                List.of());
+
+        ImportResultDto res = importer.importPackage(
+                new ImportPackageRequest("BFI", "desc", TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+        assertThat(res.success()).isTrue();
+
+        ArgumentCaptor<AddQuestionRequest> qCap = ArgumentCaptor.forClass(AddQuestionRequest.class);
+        verify(admin).addQuestion(eq(testId), qCap.capture(), any());
+        AddQuestionRequest built = qCap.getValue();
+        assertThat(built.questionType()).isEqualTo(QuestionType.SCALE);
+        assertThat(built.scaleMin()).isEqualTo(1);
+        assertThat(built.scaleMax()).isEqualTo(5);
+        assertThat(built.minLabel()).isEqualTo("Strongly Disagree");
+        assertThat(built.maxLabel()).isEqualTo("Strongly Agree");
+        assertThat(built.minLabelAr()).isEqualTo("لا أوافق بشدة");
+        assertThat(built.maxLabelAr()).isEqualTo("أوافق بشدة");
+        // SCALE questions carry NO candidate answers (DB chk_scale_range + answer_scale.value path).
+        assertThat(built.candidateAnswers()).isNullOrEmpty();
+    }
+
+    @Test
+    void unmappedLikertQuestion_inferredAsScale_allowedForPersonality() {
+        // PTI-style: a consistency/validity item with NO scoring item row. Must NOT default to
+        // CHOICE_SINGLE (rejected for PERSONALITY); inferred SCALE from contiguous 1..N options.
+        UUID testId = UUID.randomUUID();
+        UUID qId = UUID.randomUUID();
+        UUID scaleId = UUID.randomUUID();
+
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        when(admin.addQuestion(eq(testId), any(), any())).thenReturn(scaleQuestionDto(qId));
+        when(admin.createScale(eq(testId), any(), any())).thenReturn(scaleDto(scaleId, "Dominance"));
+
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(
+                        // Mapped scored question
+                        new ParsedQuestion("Q1", "Stmt", "بيان",
+                                List.of(new ParsedOption("Low", "منخفض", 1, 0),
+                                        new ParsedOption("Mid", "متوسط", 2, 1),
+                                        new ParsedOption("High", "مرتفع", 3, 2))),
+                        // UNMAPPED validity item — 4-point contiguous scale, no scoring row
+                        new ParsedQuestion("VAL1", "Consistency", "اتساق",
+                                List.of(new ParsedOption("Never", "أبداً", 1, 0),
+                                        new ParsedOption("Sometimes", "أحياناً", 2, 1),
+                                        new ParsedOption("Often", "غالباً", 3, 2),
+                                        new ParsedOption("Always", "دائماً", 4, 3)))),
+                List.of(new ScoringSheetScale("Dominance", null, ScoreMethod.SUM,
+                        NormStrategyType.EMPIRICAL_PERCENTILE,
+                        null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(new ScoringSheetItem("Q1", "Dominance", ScoreDirection.FORWARD,
+                        ItemStrategyType.LIKERT_VALUE, 1.0, null)),
+                List.of());
+
+        ImportResultDto res = importer.importPackage(
+                new ImportPackageRequest("PTI", "desc", TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+        assertThat(res.success()).isTrue();
+        assertThat(res.questions()).isEqualTo(2);
+
+        // Both questions built as SCALE — neither CHOICE_SINGLE (which PERSONALITY forbids).
+        ArgumentCaptor<AddQuestionRequest> qCap = ArgumentCaptor.forClass(AddQuestionRequest.class);
+        verify(admin, org.mockito.Mockito.times(2)).addQuestion(eq(testId), qCap.capture(), any());
+        assertThat(qCap.getAllValues())
+                .allSatisfy(r -> assertThat(r.questionType()).isEqualTo(QuestionType.SCALE));
     }
 
     @Test

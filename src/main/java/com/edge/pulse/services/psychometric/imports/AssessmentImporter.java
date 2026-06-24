@@ -67,43 +67,72 @@ public class AssessmentImporter {
         Map<String, UUID> questionIdByHeader = new LinkedHashMap<>();
         Map<String, Map<Integer, UUID>> optionIdByHeaderValue = new HashMap<>();
         for (ParsedQuestion q : pkg.questions()) {
-            QuestionType qType = questionTypeFor(pkg, q.header());
-            // TODO(Phase-1D): populate CandidateAnswer.tagScaleId from the scoring sheet's per-option
-            // tag for OPTION_TAGGED_TALLY (VIP); options currently import with tag_scale_id=NULL so VIP
-            // scores nothing until wired.
-            List<CandidateAnswerDto> opts = q.options().stream()
-                    .map(o -> new CandidateAnswerDto(null, o.labelEn(), o.labelAr(), o.displayOrder()))
-                    .toList();
-            AddQuestionRequest req = new AddQuestionRequest(
-                    q.bodyEn(), q.bodyAr(), qType,
-                    null, null, 0,
-                    opts,
-                    null, null,           // subjectLabels / subjectLabelsAr
-                    null, null,           // scaleMin / scaleMax
-                    null, null,           // minLabel / minLabelAr
-                    null, null,           // maxLabel / maxLabelAr
-                    null);                // forcedChoicePairs
+            QuestionType qType = questionTypeFor(pkg, q);
+            AddQuestionRequest req;
+            if (qType == QuestionType.SCALE) {
+                // A SCALE question is answered via answer_scale.value (1..N) — it must carry
+                // scaleMin/scaleMax (DB chk_scale_range) and NO candidate answers. The min/max
+                // labels come from the lowest- and highest-value options.
+                ParsedOption lo = q.options().stream()
+                        .min(java.util.Comparator.comparingInt(ParsedOption::value))
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "SCALE question '" + q.header() + "' has no options to derive a range from"));
+                ParsedOption hi = q.options().stream()
+                        .max(java.util.Comparator.comparingInt(ParsedOption::value))
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "SCALE question '" + q.header() + "' has no options to derive a range from"));
+                req = new AddQuestionRequest(
+                        q.bodyEn(), q.bodyAr(), qType,
+                        null, null, 0,
+                        null,                       // candidateAnswers — NONE for SCALE
+                        null, null,                 // subjectLabels / subjectLabelsAr
+                        lo.value(), hi.value(),      // scaleMin / scaleMax
+                        lo.labelEn(), lo.labelAr(), // minLabel / minLabelAr
+                        hi.labelEn(), hi.labelAr(), // maxLabel / maxLabelAr
+                        null);                      // forcedChoicePairs
+            } else {
+                // TODO(Phase-1D): populate CandidateAnswer.tagScaleId from the scoring sheet's per-option
+                // tag for OPTION_TAGGED_TALLY (VIP); options currently import with tag_scale_id=NULL so VIP
+                // scores nothing until wired.
+                List<CandidateAnswerDto> opts = q.options().stream()
+                        .map(o -> new CandidateAnswerDto(null, o.labelEn(), o.labelAr(), o.displayOrder()))
+                        .toList();
+                req = new AddQuestionRequest(
+                        q.bodyEn(), q.bodyAr(), qType,
+                        null, null, 0,
+                        opts,
+                        null, null,           // subjectLabels / subjectLabelsAr
+                        null, null,           // scaleMin / scaleMax
+                        null, null,           // minLabel / minLabelAr
+                        null, null,           // maxLabel / maxLabelAr
+                        null);                // forcedChoicePairs
+            }
             QuestionDto created = admin.addQuestion(testId, req, userId);
             questionIdByHeader.put(q.header(), created.id());
 
-            // Map created options to parsed values by displayOrder, not list position, so that any
-            // reordering in the service layer does not silently wire the wrong option ids.
-            List<CandidateAnswerDto> createdOpts = created.candidateAnswers();
-            Map<Integer, UUID> byValue = new HashMap<>();
-            if (createdOpts != null) {
-                for (CandidateAnswerDto ca : createdOpts) {
-                    int order = ca.displayOrder();
-                    if (order < 0 || order >= q.options().size()) {
-                        throw new IllegalArgumentException(
-                                "Returned option has displayOrder " + order
-                                + " which is out of range [0, " + q.options().size()
-                                + ") for question '" + q.header() + "'");
+            // (header,value) -> optionId is only used to resolve ANSWER_KEY_SINGLE correctAnswerId.
+            // SCALE/Likert items are answered via answer_scale.value and carry no candidate answers,
+            // so skip the map for SCALE (created.candidateAnswers() is null/empty → NPE-safe anyway).
+            if (qType != QuestionType.SCALE) {
+                // Map created options to parsed values by displayOrder, not list position, so that any
+                // reordering in the service layer does not silently wire the wrong option ids.
+                List<CandidateAnswerDto> createdOpts = created.candidateAnswers();
+                Map<Integer, UUID> byValue = new HashMap<>();
+                if (createdOpts != null) {
+                    for (CandidateAnswerDto ca : createdOpts) {
+                        int order = ca.displayOrder();
+                        if (order < 0 || order >= q.options().size()) {
+                            throw new IllegalArgumentException(
+                                    "Returned option has displayOrder " + order
+                                    + " which is out of range [0, " + q.options().size()
+                                    + ") for question '" + q.header() + "'");
+                        }
+                        ParsedOption parsed = q.options().get(order);
+                        byValue.put(parsed.value(), ca.id());
                     }
-                    ParsedOption parsed = q.options().get(order);
-                    byValue.put(parsed.value(), ca.id());
                 }
+                optionIdByHeaderValue.put(q.header(), byValue);
             }
-            optionIdByHeaderValue.put(q.header(), byValue);
         }
 
         // 3. Scales: parents-first so child rows can reference an already-created parent id.
@@ -221,15 +250,21 @@ public class AssessmentImporter {
     }
 
     /**
-     * Determines the {@link QuestionType} for a question header from the item strategies of all
-     * scoring items that reference it. Multiple items sharing the SAME strategy (e.g. VIP's
+     * Determines the {@link QuestionType} for a question from the item strategies of all scoring
+     * items that reference its header. Multiple items sharing the SAME strategy (e.g. VIP's
      * per-scale OPTION_TAGGED_TALLY items) are fine. If two distinct strategies that map to
      * different QuestionTypes both reference the same question header an
      * {@link IllegalArgumentException} is thrown — such a package is malformed.
-     * Falls back to CHOICE_SINGLE when no item references the header (defensive; the parser
-     * guarantees every item's header exists).
+     *
+     * <p>When NO scoring item references the question (e.g. PTI validity/consistency items that
+     * are not scored on any substantive scale), the type is INFERRED from the option structure:
+     * a contiguous {@code 1..N} integer rating scale of ≥3 options → {@link QuestionType#SCALE};
+     * exactly 2 options → {@link QuestionType#FORCED_CHOICE}; otherwise
+     * {@link QuestionType#CHOICE_SINGLE}. This keeps unmapped Likert validity items valid for a
+     * PERSONALITY test (which forbids CHOICE_SINGLE).
      */
-    private QuestionType questionTypeFor(ParsedPackage pkg, String header) {
+    private QuestionType questionTypeFor(ParsedPackage pkg, ParsedQuestion q) {
+        String header = q.header();
         Set<QuestionType> distinctTypes = pkg.items().stream()
                 .filter(it -> header.equals(it.questionHeader()))
                 .map(ScoringSheetItem::itemStrategy)
@@ -242,13 +277,41 @@ public class AssessmentImporter {
                 })
                 .collect(Collectors.toSet());
 
-        if (distinctTypes.isEmpty()) {
-            return QuestionType.CHOICE_SINGLE;
-        }
         if (distinctTypes.size() > 1) {
             throw new IllegalArgumentException(
                     "Conflicting question types for question '" + header + "': " + distinctTypes);
         }
-        return distinctTypes.iterator().next();
+        if (!distinctTypes.isEmpty()) {
+            return distinctTypes.iterator().next();
+        }
+        // Unmapped question — infer from option structure.
+        return inferTypeFromOptions(q.options());
+    }
+
+    /**
+     * Infers a {@link QuestionType} for an unmapped question from its option {@code value}s:
+     * a contiguous {@code 1..N} integer rating scale of ≥3 options → SCALE; exactly 2 options →
+     * FORCED_CHOICE; otherwise CHOICE_SINGLE.
+     */
+    private QuestionType inferTypeFromOptions(List<ParsedOption> options) {
+        int n = options.size();
+        if (n >= 3) {
+            Set<Integer> values = options.stream().map(ParsedOption::value).collect(Collectors.toSet());
+            boolean contiguousFromOne = values.size() == n;
+            if (contiguousFromOne) {
+                for (int v = 1; v <= n; v++) {
+                    if (!values.contains(v)) {
+                        contiguousFromOne = false;
+                        break;
+                    }
+                }
+            }
+            if (contiguousFromOne) {
+                return QuestionType.SCALE;
+            }
+        } else if (n == 2) {
+            return QuestionType.FORCED_CHOICE;
+        }
+        return QuestionType.CHOICE_SINGLE;
     }
 }
