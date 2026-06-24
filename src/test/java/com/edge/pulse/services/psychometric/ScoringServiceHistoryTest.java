@@ -222,8 +222,9 @@ class ScoringServiceHistoryTest {
     }
 
     @Test
-    void invalidResult_isNotRecorded() {
-        // A scale named "Consistency" with sten ≤ 2 → result validity INVALID → no history.
+    void invalidResult_viaConsistencyScale_isNotRecorded() {
+        // End-to-end path: a "Consistency" validity scale with sten ≤ 2 drives the SCORED
+        // result to validity INVALID, so recordCapabilityHistory writes nothing (D4).
         PsychometricScale consistency = PsychometricScale.builder()
                 .id(scaleId).test(psychTest).name("Consistency")
                 .scoreMethod(ScoreMethod.SUM).build();
@@ -233,6 +234,31 @@ class ScoringServiceHistoryTest {
         scoringService.scoreSession(session);
 
         verify(capabilityScoreHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    void invalidResult_directValidityStatus_isNotRecorded() {
+        // D4 gate in isolation: a FINAL result with validityStatus set directly to INVALID
+        // (no name-matching) must short-circuit before any history/current row is written.
+        User user = User.builder().id(userId).build();
+        ScoringKeyItem item = ScoringKeyItem.builder()
+                .id(UUID.randomUUID()).scale(scale).build();
+        TestResult result = TestResult.builder()
+                .id(UUID.randomUUID())
+                .test(psychTest)
+                .session(ResponseSession.builder().id(sessionId).user(user).build())
+                .resultState(ResultState.FINAL)
+                .validityStatus(ValidityStatus.INVALID)
+                .scoredAt(LocalDateTime.now())
+                .build();
+        ScaleScore ss = ScaleScore.builder()
+                .id(UUID.randomUUID()).scale(scale)
+                .stenScore(new BigDecimal("5.5")).build();
+
+        scoringService.recordCapabilityHistory(result, List.of(ss), List.of(item));
+
+        verify(capabilityScoreHistoryRepository, never()).save(any());
+        verify(capabilityProfileCurrentRepository, never()).save(any());
     }
 
     @Test

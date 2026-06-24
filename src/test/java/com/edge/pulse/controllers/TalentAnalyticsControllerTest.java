@@ -48,7 +48,7 @@ class TalentAnalyticsControllerTest {
         UUID userId = UUID.randomUUID();
         UUID testId = UUID.randomUUID();
         UUID subjectId = UUID.randomUUID();
-        when(service.capabilityTrend(eq(subjectId), eq(testId)))
+        when(service.capabilityTrend(eq(userId), eq(subjectId), eq(testId)))
                 .thenReturn(new CapabilityTrendDto(subjectId, testId, List.of()));
 
         mvc.perform(get("/api/admin/psychometric/analytics/tests/{testId}/users/{userId}/trend",

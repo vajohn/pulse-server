@@ -30,7 +30,8 @@ public class TalentAnalyticsController {
     @GetMapping("/tests/{testId}/users/{userId}/trend")
     @PreAuthorize("hasAnyAuthority('ASSESS_RESULT_READ', 'ASSESS_ALL')")
     public ResponseEntity<CapabilityTrendDto> trend(
-            @PathVariable UUID testId, @PathVariable UUID userId) {
-        return ResponseEntity.ok(service.capabilityTrend(userId, testId));
+            @PathVariable UUID testId, @PathVariable UUID userId, Authentication auth) {
+        return ResponseEntity.ok(
+                service.capabilityTrend((UUID) auth.getPrincipal(), userId, testId));
     }
 }

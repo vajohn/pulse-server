@@ -52,5 +52,6 @@ CREATE TABLE capability_profile_current (
     updated_at             TIMESTAMP NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, scale_id)
 );
+CREATE INDEX idx_profile_current_user ON capability_profile_current(user_id);
 CREATE INDEX idx_profile_current_scale ON capability_profile_current(scale_id);
 CREATE INDEX idx_profile_current_test ON capability_profile_current(test_id);

@@ -392,8 +392,9 @@ public class ScoringService {
      * items), sten present, a real (non-anonymous) user, and no existing history row for the
      * (scale, result) pair (idempotent re-score guard). Append-only — never re-scores prior rows.
      */
-    private void recordCapabilityHistory(TestResult result, List<ScaleScore> scaleScores,
-                                         List<ScoringKeyItem> items) {
+    // Package-private for direct unit testing of the D3/D4 exclusion gates (see ScoringServiceHistoryTest).
+    void recordCapabilityHistory(TestResult result, List<ScaleScore> scaleScores,
+                                 List<ScoringKeyItem> items) {
         if (result.getResultState() != ResultState.FINAL) return;          // D3 — PROVISIONAL excluded
         if (result.getValidityStatus() == ValidityStatus.INVALID) return;  // D4
         UUID userId = (result.getSession() != null && result.getSession().getUser() != null)

@@ -7,6 +7,7 @@ import com.edge.pulse.data.models.psychometric.CapabilityScoreHistory;
 import com.edge.pulse.data.models.psychometric.PsychometricScale;
 import com.edge.pulse.repositories.psychometric.CapabilityProfileCurrentRepository;
 import com.edge.pulse.repositories.psychometric.CapabilityScoreHistoryRepository;
+import com.edge.pulse.repositories.OrganizationalUnitRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricScaleRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricTestRepository;
 import com.edge.pulse.services.AnalyticsConstants;
@@ -38,6 +39,7 @@ public class TalentAnalyticsService {
     private final PsychometricScaleRepository scaleRepository;
     private final PsychometricTestRepository testRepository;
     private final OrgUnitScopeService orgUnitScopeService;
+    private final OrganizationalUnitRepository orgUnitRepository;
 
     /** Org-scoped cohort distribution per leaf scale (D2/D3/D4). */
     @Transactional(readOnly = true)
@@ -91,11 +93,25 @@ public class TalentAnalyticsService {
                 scaleId, name, n, n > 0 ? sum / n : null, hist);
     }
 
-    /** Per-employee longitudinal trend per leaf scale (D1/D5). */
+    /**
+     * Per-employee longitudinal trend per leaf scale (D1/D5).
+     *
+     * <p>Org-scope enforced (C1): the target {@code userId} must live within the caller's
+     * accessible org units (same four-branch resolution the cohort path uses). A caller with
+     * org-wide scope sees every active org unit, so any in-scope target is permitted; a target
+     * outside the caller's set — or with no org unit — yields {@code 403 FORBIDDEN}. This blocks
+     * pulling an arbitrary employee's longitudinal history by UUID.
+     */
     @Transactional(readOnly = true)
-    public CapabilityTrendDto capabilityTrend(UUID userId, UUID testId) {
+    public CapabilityTrendDto capabilityTrend(UUID callerId, UUID userId, UUID testId) {
         if (!testRepository.existsById(testId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        Set<UUID> accessibleOrgUnitIds =
+                orgUnitScopeService.resolveAccessibleOrgUnitIdsFromContext(callerId);
+        UUID targetOrgUnitId = orgUnitRepository.findOrgUnitIdByUserId(userId).orElse(null);
+        if (targetOrgUnitId == null || !accessibleOrgUnitIds.contains(targetOrgUnitId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         List<CapabilityScoreHistory> history =
                 historyRepository.findByUserIdAndTestIdOrderByScoredAtAsc(userId, testId);

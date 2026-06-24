@@ -40,12 +40,14 @@ class TalentAnalyticsServiceTest {
 
     TalentAnalyticsService service;
 
+    @Mock com.edge.pulse.repositories.OrganizationalUnitRepository orgUnitRepository;
+
     UUID testId, callerId, scaleA, scaleB;
 
     @BeforeEach
     void setUp() {
         service = new TalentAnalyticsService(currentRepository, historyRepository,
-                scaleRepository, testRepository, orgUnitScopeService);
+                scaleRepository, testRepository, orgUnitScopeService, orgUnitRepository);
         testId = UUID.randomUUID();
         callerId = UUID.randomUUID();
         scaleA = UUID.randomUUID();
@@ -143,8 +145,9 @@ class TalentAnalyticsServiceTest {
         when(historyRepository.findByUserIdAndTestIdOrderByScoredAtAsc(userId, testId))
                 .thenReturn(series);
         when(scaleRepository.findByTestId(testId)).thenReturn(List.of(scale(scaleA, "Resilience", false)));
+        grantAccessTo(userId);
 
-        CapabilityTrendDto dto = service.capabilityTrend(userId, testId);
+        CapabilityTrendDto dto = service.capabilityTrend(callerId, userId, testId);
 
         assertThat(dto.scales()).hasSize(1);
         CapabilityTrendDto.ScaleTrend st = dto.scales().get(0);
@@ -163,8 +166,9 @@ class TalentAnalyticsServiceTest {
         when(historyRepository.findByUserIdAndTestIdOrderByScoredAtAsc(userId, testId))
                 .thenReturn(List.of(hist(scaleA, 5, v1, t0), hist(scaleA, 6, v1, t0.plusDays(20))));
         when(scaleRepository.findByTestId(testId)).thenReturn(List.of(scale(scaleA, "Resilience", false)));
+        grantAccessTo(userId);
 
-        CapabilityTrendDto dto = service.capabilityTrend(userId, testId);
+        CapabilityTrendDto dto = service.capabilityTrend(callerId, userId, testId);
 
         assertThat(dto.scales().get(0).normBoundaryCrossed()).isFalse();
     }
@@ -178,11 +182,70 @@ class TalentAnalyticsServiceTest {
                 .thenReturn(List.of(hist(scaleA, 5, v1, t0), hist(scaleB, 9, v1, t0)));
         when(scaleRepository.findByTestId(testId)).thenReturn(List.of(
                 scale(scaleA, "Resilience", false), scale(scaleB, "Manipulativeness", true)));
+        grantAccessTo(userId);
 
-        CapabilityTrendDto dto = service.capabilityTrend(userId, testId);
+        CapabilityTrendDto dto = service.capabilityTrend(callerId, userId, testId);
 
         assertThat(dto.scales()).hasSize(1);
         assertThat(dto.scales().get(0).scaleId()).isEqualTo(scaleA);
+    }
+
+    // ── C1: trend endpoint org-scope authz ───────────────────────────────────
+
+    /** Marks {@code targetUserId} as living in an org unit the caller can see. */
+    private void grantAccessTo(UUID targetUserId) {
+        UUID orgUnitId = UUID.randomUUID();
+        when(orgUnitScopeService.resolveAccessibleOrgUnitIdsFromContext(callerId))
+                .thenReturn(Set.of(orgUnitId));
+        when(orgUnitRepository.findOrgUnitIdByUserId(targetUserId))
+                .thenReturn(java.util.Optional.of(orgUnitId));
+    }
+
+    @Test
+    void capabilityTrend_targetOutsideCallerScope_throws403() {
+        UUID userId = UUID.randomUUID();
+        UUID orgUnitA = UUID.randomUUID();  // caller can see A
+        UUID orgUnitB = UUID.randomUUID();  // target lives in B
+        when(orgUnitScopeService.resolveAccessibleOrgUnitIdsFromContext(callerId))
+                .thenReturn(Set.of(orgUnitA));
+        when(orgUnitRepository.findOrgUnitIdByUserId(userId))
+                .thenReturn(java.util.Optional.of(orgUnitB));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.capabilityTrend(callerId, userId, testId))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void capabilityTrend_targetWithNoOrgUnit_throws403() {
+        UUID userId = UUID.randomUUID();
+        when(orgUnitScopeService.resolveAccessibleOrgUnitIdsFromContext(callerId))
+                .thenReturn(Set.of(UUID.randomUUID()));
+        when(orgUnitRepository.findOrgUnitIdByUserId(userId))
+                .thenReturn(java.util.Optional.empty());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.capabilityTrend(callerId, userId, testId))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void capabilityTrend_targetInCallerScope_returnsSeries() {
+        UUID userId = UUID.randomUUID();
+        UUID v1 = UUID.randomUUID();
+        LocalDateTime t0 = LocalDateTime.now().minusDays(10);
+        when(historyRepository.findByUserIdAndTestIdOrderByScoredAtAsc(userId, testId))
+                .thenReturn(List.of(hist(scaleA, 5, v1, t0)));
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(scale(scaleA, "Resilience", false)));
+        grantAccessTo(userId);
+
+        CapabilityTrendDto dto = service.capabilityTrend(callerId, userId, testId);
+
+        assertThat(dto.scales()).hasSize(1);
     }
 
     @Test
