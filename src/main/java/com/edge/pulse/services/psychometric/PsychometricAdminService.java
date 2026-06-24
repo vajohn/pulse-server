@@ -18,6 +18,8 @@ import com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest;
 import com.edge.pulse.data.dto.psychometric.UpdateScaleRequest;
 import com.edge.pulse.data.dto.psychometric.UpsertVisibilityPolicyRequest;
 import com.edge.pulse.data.dto.psychometric.VisibilityPolicyDto;
+import com.edge.pulse.data.enums.CompositeBasis;
+import com.edge.pulse.data.enums.CompositeMethod;
 import com.edge.pulse.data.enums.FormType;
 import com.edge.pulse.data.enums.NormStatus;
 import com.edge.pulse.data.enums.QuestionType;
@@ -258,6 +260,9 @@ public class PsychometricAdminService {
                 .description(req.description())
                 .scoreMethod(parseScoreMethod(req.scoreMethod()))
                 .displayOrder(req.displayOrder())
+                .compositeMethod(req.compositeMethod())
+                .compositeBasis(req.compositeBasis())
+                .compositeRoundingScale(req.compositeRoundingScale())
                 .build();
         scaleRepository.save(scale);
 
@@ -283,6 +288,9 @@ public class PsychometricAdminService {
                             "Parent scale not found: " + req.parentScaleId()));
             scale.setParentScale(parent);
         }
+        if (req.compositeMethod() != null) scale.setCompositeMethod(req.compositeMethod());
+        if (req.compositeBasis() != null)  scale.setCompositeBasis(req.compositeBasis());
+        if (req.compositeRoundingScale() != null) scale.setCompositeRoundingScale(req.compositeRoundingScale());
 
         scaleRepository.save(scale);
         auditService.logAction(updatedById, "PSYCHOMETRIC_SCALE_UPDATED", "PsychometricScale",
@@ -790,7 +798,10 @@ public class PsychometricAdminService {
                 s.getName(),
                 s.getDescription(),
                 s.getScoreMethod().name(),
-                s.getDisplayOrder()
+                s.getDisplayOrder(),
+                s.getCompositeMethod(),
+                s.getCompositeBasis(),
+                s.getCompositeRoundingScale()
         );
     }
 

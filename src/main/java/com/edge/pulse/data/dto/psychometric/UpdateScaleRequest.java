@@ -1,5 +1,8 @@
 package com.edge.pulse.data.dto.psychometric;
 
+import com.edge.pulse.data.enums.CompositeBasis;
+import com.edge.pulse.data.enums.CompositeMethod;
+
 import java.util.UUID;
 
 /**
@@ -12,5 +15,11 @@ public record UpdateScaleRequest(
         String description,
         String scoreMethod,
         UUID parentScaleId,
-        Integer displayOrder
+        Integer displayOrder,
+        /** NULL = no change to composite method. */
+        CompositeMethod compositeMethod,
+        /** NULL = no change to composite basis. */
+        CompositeBasis compositeBasis,
+        /** NULL = no change to composite rounding scale. */
+        Integer compositeRoundingScale
 ) {}

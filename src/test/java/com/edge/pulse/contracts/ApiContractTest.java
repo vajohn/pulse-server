@@ -664,7 +664,10 @@ class ApiContractTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 null,  // parentScaleId absent
                 "Life Control", "Control over life events",
-                "AVERAGE", 1
+                "AVERAGE", 1,
+                null,  // compositeMethod absent
+                null,  // compositeBasis absent
+                null   // compositeRoundingScale absent
         );
 
         JsonNode node = mapper.readTree(mapper.writeValueAsString(dto));

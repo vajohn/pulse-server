@@ -225,7 +225,7 @@ public class ScoringService {
                     s.getCompositeBasis(),
                     childScaleIds,
                     norm,
-                    null));
+                    s.getCompositeRoundingScale()));
         }
 
         // ── Delegate to the pure calculator ───────────────────────────────────────

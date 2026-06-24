@@ -1,10 +1,13 @@
 package com.edge.pulse.services.psychometric;
 
 import com.edge.pulse.data.dto.psychometric.CreatePsychometricTestRequest;
+import com.edge.pulse.data.dto.psychometric.CreateScaleRequest;
 import com.edge.pulse.data.dto.psychometric.NormEntryRequest;
 import com.edge.pulse.data.dto.psychometric.PsychometricTestAnalyticsDto;
 import com.edge.pulse.data.dto.psychometric.ScoringKeyItemRequest;
 import com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest;
+import com.edge.pulse.data.enums.CompositeBasis;
+import com.edge.pulse.data.enums.CompositeMethod;
 import com.edge.pulse.data.enums.NormStatus;
 import com.edge.pulse.data.enums.QuestionType;
 import com.edge.pulse.data.enums.ScoringKeyStatus;
@@ -57,6 +60,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
 
 @ExtendWith(MockitoExtension.class)
 class PsychometricAdminServiceTest {
@@ -488,5 +492,38 @@ class PsychometricAdminServiceTest {
                         .isEqualTo(HttpStatus.BAD_REQUEST));
 
         verify(normTableVersionRepository, never()).deprecateValidatedNormsByTestId(any());
+    }
+
+    // ── createScale — composite fields persistence ────────────────────────────
+
+    @Test
+    void createScale_persistsCompositeFields() {
+        UUID testId = UUID.randomUUID();
+        UUID userId  = UUID.randomUUID();
+
+        PsychometricTest test = PsychometricTest.builder().id(testId).build();
+
+        when(testRepository.findById(testId)).thenReturn(Optional.of(test));
+        when(scaleRepository.save(any(PsychometricScale.class))).thenAnswer(returnsFirstArg());
+        when(auditService.buildDetail(any(), any(), any(), any())).thenReturn("{}");
+
+        CreateScaleRequest req = new CreateScaleRequest(
+                "IQ_overall",
+                "Composite IQ",
+                "MEAN",
+                null,   // parentScaleId
+                0,      // displayOrder
+                CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN,
+                CompositeBasis.TSCORE,
+                0       // compositeRoundingScale — integer precision (0 dp)
+        );
+
+        var dto = adminService.createScale(testId, req, userId);
+
+        // Capture what was passed to scaleRepository.save via the thenAnswer return
+        // The DTO is built from the saved entity — assert the three composite fields round-trip.
+        assertThat(dto.compositeMethod()).isEqualTo(CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN);
+        assertThat(dto.compositeBasis()).isEqualTo(CompositeBasis.TSCORE);
+        assertThat(dto.compositeRoundingScale()).isEqualTo(0);
     }
 }

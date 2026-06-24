@@ -1,5 +1,8 @@
 package com.edge.pulse.data.dto.psychometric;
 
+import com.edge.pulse.data.enums.CompositeBasis;
+import com.edge.pulse.data.enums.CompositeMethod;
+
 import java.util.UUID;
 
 /**
@@ -14,5 +17,11 @@ public record PsychometricScaleDto(
         String description,
         /** ScoreMethod.name() — e.g. "SUM", "MEAN". */
         String scoreMethod,
-        int displayOrder
+        int displayOrder,
+        /** NULL = leaf scale (not a composite). */
+        CompositeMethod compositeMethod,
+        /** Which score type child scales contribute when this is a composite. NULL for leaf scales. */
+        CompositeBasis compositeBasis,
+        /** Decimal places for composite rollup rounding. NULL = default 1 dp. */
+        Integer compositeRoundingScale
 ) {}

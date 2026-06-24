@@ -51,4 +51,12 @@ public class CandidateAnswer {
     @JsonIgnore
     @Column(name = "is_correct")
     private Boolean isCorrect;
+
+    /**
+     * For OPTION_TAGGED_TALLY (VIP) scoring: the scale this option's tally is credited to.
+     * NULL for all non-VIP answer options.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tag_scale_id")
+    private com.edge.pulse.data.models.psychometric.PsychometricScale tagScale;
 }

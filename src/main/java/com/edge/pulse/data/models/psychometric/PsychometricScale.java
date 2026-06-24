@@ -58,4 +58,8 @@ public class PsychometricScale {
     @Enumerated(EnumType.STRING)
     @Column(name = "composite_basis")
     private CompositeBasis compositeBasis;
+
+    /** Decimal places for composite rollup rounding. NULL = default 1 dp. */
+    @Column(name = "composite_rounding_scale")
+    private Integer compositeRoundingScale;
 }
