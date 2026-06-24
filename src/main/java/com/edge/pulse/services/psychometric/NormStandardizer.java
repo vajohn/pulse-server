@@ -36,6 +36,21 @@ public final class NormStandardizer {
         return BigDecimal.valueOf(phi * 100.0).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /** STEN to one decimal, clamped to [1,10], round-half-even (matches numpy .round(1)). */
+    public static BigDecimal stenDecimal(BigDecimal z) {
+        BigDecimal raw = new BigDecimal("5.5").add(z.multiply(BigDecimal.valueOf(2)));
+        BigDecimal clamped = raw.max(BigDecimal.ONE).min(BigDecimal.TEN);
+        return clamped.setScale(1, java.math.RoundingMode.HALF_EVEN);
+    }
+
+    /** T = clamp(z*factor + offset, lo, hi), one decimal, round-half-even. */
+    public static BigDecimal tScore(BigDecimal z, BigDecimal factor, BigDecimal offset,
+                                    BigDecimal clipLo, BigDecimal clipHi) {
+        BigDecimal raw = z.multiply(factor).add(offset);
+        BigDecimal clamped = raw.max(clipLo).min(clipHi);
+        return clamped.setScale(1, java.math.RoundingMode.HALF_EVEN);
+    }
+
     /**
      * Abramowitz & Stegun 7.1.26 approximation of the error function.
      * Max absolute error 1.5e-7 — negligible at 2-decimal percentile precision.

@@ -51,4 +51,41 @@ class NormStandardizerTest {
         assertThat(NormStandardizer.sten(z)).isEqualTo(10);
         assertThat(NormStandardizer.percentile(z)).isEqualByComparingTo("97.72");
     }
+
+    // ── stenDecimal ──────────────────────────────────────────────────────────────
+    @Test
+    void stenDecimal_roundsHalfEvenToOneDecimal() {
+        // z=0 -> 5.5 ; z=0.75 -> 5.5+1.5=7.0
+        assertThat(NormStandardizer.stenDecimal(new BigDecimal("0")))
+                .isEqualByComparingTo("5.5");
+        assertThat(NormStandardizer.stenDecimal(new BigDecimal("0.75")))
+                .isEqualByComparingTo("7.0");
+    }
+
+    @Test
+    void stenDecimal_clampsTo1And10() {
+        assertThat(NormStandardizer.stenDecimal(new BigDecimal("-5")))
+                .isEqualByComparingTo("1.0");
+        assertThat(NormStandardizer.stenDecimal(new BigDecimal("5")))
+                .isEqualByComparingTo("10.0");
+    }
+
+    // ── tScore ───────────────────────────────────────────────────────────────────
+    @Test
+    void tScore_personalityScaling_10x50_clip10to120() {
+        // z=1 -> 60.0
+        assertThat(NormStandardizer.tScore(new BigDecimal("1"),
+                new BigDecimal("10"), new BigDecimal("50"),
+                new BigDecimal("10"), new BigDecimal("120")))
+                .isEqualByComparingTo("60.0");
+    }
+
+    @Test
+    void tScore_cognitiveScaling_15x100_clip40to160() {
+        // z=2 -> 130.0
+        assertThat(NormStandardizer.tScore(new BigDecimal("2"),
+                new BigDecimal("15"), new BigDecimal("100"),
+                new BigDecimal("40"), new BigDecimal("160")))
+                .isEqualByComparingTo("130.0");
+    }
 }
