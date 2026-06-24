@@ -2,6 +2,7 @@ package com.edge.pulse.services.psychometric.imports;
 
 import com.edge.pulse.data.dto.psychometric.imports.*;
 import com.edge.pulse.data.enums.*;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -13,6 +14,7 @@ import java.util.*;
  * <p>Validation errors are collected into {@link ParseOutcome#errors()} — the parser never
  * throws on bad data; it builds best-effort and returns error list alongside.
  */
+@Component
 public class AssessmentPackageParser {
 
     /** Result of a parse operation: best-effort package plus any collected errors. */
