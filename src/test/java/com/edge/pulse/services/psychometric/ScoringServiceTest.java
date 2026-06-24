@@ -257,12 +257,121 @@ class ScoringServiceTest {
 
         scoringService.scoreSession(session);
 
+        // save() is called twice: initial persist + validity-status update
         ArgumentCaptor<TestResult> captor = ArgumentCaptor.forClass(TestResult.class);
-        verify(testResultRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(TestResultStatus.SCORED);
-        assertThat(captor.getValue().getResultState()).isEqualTo(ResultState.FINAL);
-        assertThat(captor.getValue().getScoredAt()).isNotNull();
-        assertThat(captor.getValue().getScoringKeyVersion()).isEqualTo(activeKey);
+        verify(testResultRepository, atLeast(1)).save(captor.capture());
+        TestResult first = captor.getAllValues().get(0);
+        assertThat(first.getStatus()).isEqualTo(TestResultStatus.SCORED);
+        assertThat(first.getResultState()).isEqualTo(ResultState.FINAL);
+        assertThat(first.getScoredAt()).isNotNull();
+        assertThat(first.getScoringKeyVersion()).isEqualTo(activeKey);
+        // validity status is set on the second save; no norm table → no sten → VALID default
+        TestResult second = captor.getAllValues().get(1);
+        assertThat(second.getValidityStatus()).isEqualTo(ValidityStatus.VALID);
+    }
+
+    // ── Validity status (Task 10) ─────────────────────────────────────────────────
+
+    @Test
+    void scoreSession_lowConsistency_setsValidityInvalid() {
+        // Configure a scale named "Consistency" with norm params that yield a very low STEN
+        // (raw far below mean → strongly negative z → STEN ≤ 2 → INVALID).
+        // mean=10, sd=2 → z = (raw - 10) / 2.  raw = 1 → z = -4.5 → sten = 5.5 + 2*(-4.5) = -3.5
+        // clamped to [1, 10] → 1.0 (well below 2).
+        PsychometricScale consistencyScale = PsychometricScale.builder()
+                .id(UUID.randomUUID())
+                .test(psychTest)
+                .name("Consistency")
+                .scoreMethod(ScoreMethod.SUM)
+                .build();
+        UUID consistencyScaleId = consistencyScale.getId();
+        UUID consistencyQuestionId = UUID.randomUUID();
+
+        Question q = Question.builder().id(consistencyQuestionId).questionType(QuestionType.SCALE).build();
+        ScoringKeyItem consistencyItem = ScoringKeyItem.builder()
+                .id(UUID.randomUUID())
+                .scale(consistencyScale)
+                .question(q)
+                .direction(ScoreDirection.FORWARD)
+                .weight(BigDecimal.ONE)
+                .build();
+
+        AnswerSubmission submission = AnswerSubmission.builder()
+                .id(UUID.randomUUID()).question(q).build();
+        AnswerScale consistencyAnswer = AnswerScale.builder()
+                .id(UUID.randomUUID())
+                .submission(submission)
+                .value(1).minValue(1).maxValue(5)
+                .build();
+
+        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID())
+                .normStrategy(NormStrategyType.PARAMETRIC).build();
+        NormScaleParam param = NormScaleParam.builder()
+                .normTable(norm).scale(consistencyScale)
+                .mean(new BigDecimal("10")).sd(new BigDecimal("2"))
+                .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build();
+
+        // Set up mocks manually (bypassing setupFullScoreScenario since we use a different scale)
+        when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
+        when(testResultRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(scoringKeyVersionRepository.findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE))
+                .thenReturn(Optional.of(activeKey));
+        when(scoringKeyItemRepository.findByScoringKeyIdWithDetails(activeKey.getId()))
+                .thenReturn(List.of(consistencyItem));
+        when(answerScaleRepository.findCurrentBySessionId(sessionId))
+                .thenReturn(List.of(consistencyAnswer));
+        when(answerChoiceRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(consistencyScale));
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.of(norm));
+        when(normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), consistencyScaleId))
+                .thenReturn(Optional.of(param));
+
+        TestResult savedResult = TestResult.builder().id(UUID.randomUUID())
+                .status(TestResultStatus.SCORED).scoringKeyVersion(activeKey).build();
+        when(testResultRepository.save(any())).thenReturn(savedResult);
+        lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
+        when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        scoringService.scoreSession(session);
+
+        // The second save() call carries the validity update — capture all calls
+        ArgumentCaptor<TestResult> captor = ArgumentCaptor.forClass(TestResult.class);
+        verify(testResultRepository, atLeast(2)).save(captor.capture());
+        // The last save is the validity-update save
+        TestResult validityUpdate = captor.getAllValues().get(captor.getAllValues().size() - 1);
+        assertThat(validityUpdate.getValidityStatus()).isEqualTo(ValidityStatus.INVALID);
+    }
+
+    @Test
+    void scoreSession_normalScale_setsValidityValid() {
+        // Normal scale (not a validity scale name), normal STEN → VALID
+        ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
+        AnswerScale answer = buildScaleAnswer(3, 1, 5);
+        // mean=3, sd=1 → z=0 → sten=5.5 (well above 2)
+        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID())
+                .normStrategy(NormStrategyType.PARAMETRIC).build();
+        NormScaleParam param = NormScaleParam.builder()
+                .normTable(norm).scale(scale)
+                .mean(new BigDecimal("3")).sd(new BigDecimal("1"))
+                .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build();
+
+        setupFullScoreScenario(List.of(item), Map.of(questionId, answer), Map.of());
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.of(norm));
+        when(normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), scaleId))
+                .thenReturn(Optional.of(param));
+
+        scoringService.scoreSession(session);
+
+        ArgumentCaptor<TestResult> captor = ArgumentCaptor.forClass(TestResult.class);
+        verify(testResultRepository, atLeast(2)).save(captor.capture());
+        TestResult validityUpdate = captor.getAllValues().get(captor.getAllValues().size() - 1);
+        assertThat(validityUpdate.getValidityStatus()).isEqualTo(ValidityStatus.VALID);
     }
 
     // ── Competency scoring ────────────────────────────────────────────────────────

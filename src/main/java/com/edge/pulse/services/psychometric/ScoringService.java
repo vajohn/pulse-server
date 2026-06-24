@@ -9,6 +9,7 @@ import com.edge.pulse.data.enums.ResultState;
 import com.edge.pulse.data.enums.ScoreDirection;
 import com.edge.pulse.data.enums.ScoringKeyStatus;
 import com.edge.pulse.data.enums.TestResultStatus;
+import com.edge.pulse.data.enums.ValidityStatus;
 import com.edge.pulse.data.models.AnswerAdjective;
 import com.edge.pulse.data.models.AnswerChoice;
 import com.edge.pulse.data.models.AnswerScale;
@@ -264,6 +265,27 @@ public class ScoringService {
                     .build();
             savedScaleScores.add(scaleScoreRepository.save(ss));
         }
+
+        // ── Validity status (Task 10) ────────────────────────────────────────────
+        // Inspect scale scores for validity-flagging scales (case-insensitive name match).
+        // Rule: INVALID if a Consistency, Inconsistency, or Social_Desirability scale has
+        // a non-null STEN ≤ 2.  Default is VALID.  Only set on the SCORED path (not PENDING).
+        ValidityStatus vs = ValidityStatus.VALID;
+        for (ScaleScoreResult r : output.scaleScores()) {
+            PsychometricScale s = scaleById.get(r.scaleId());
+            if (s == null) continue;
+            String name = s.getName();
+            if (name != null
+                    && (name.equalsIgnoreCase("Consistency")
+                            || name.equalsIgnoreCase("Inconsistency")
+                            || name.equalsIgnoreCase("Social_Desirability"))
+                    && r.stenScore() != null
+                    && r.stenScore().compareTo(new BigDecimal("2")) <= 0) {
+                vs = ValidityStatus.INVALID;
+            }
+        }
+        result.setValidityStatus(vs);
+        testResultRepository.save(result);
 
         // ── Competency scoring ───────────────────────────────────────────────────
         scoreCompetencies(result, savedScaleScores);
