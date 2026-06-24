@@ -20,10 +20,10 @@ class ScoringCalculatorTest {
                 new BigDecimal("10"), new BigDecimal("120"), null);
 
         var scales = List.of(
-            new ScaleConfig(childA, "A", parent, ScoreMethod.SUM, null, null, List.of(), n),
-            new ScaleConfig(childB, "B", parent, ScoreMethod.SUM, null, null, List.of(), n),
+            new ScaleConfig(childA, "A", parent, ScoreMethod.SUM, null, null, List.of(), n, null),
+            new ScaleConfig(childB, "B", parent, ScoreMethod.SUM, null, null, List.of(), n, null),
             new ScaleConfig(parent, "P", null, ScoreMethod.SUM,
-                    CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN, CompositeBasis.STEN, List.of(childA, childB), null));
+                    CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN, CompositeBasis.STEN, List.of(childA, childB), null, null));
 
         var items = List.of(
             new ItemConfig(qa, childA, ItemStrategyType.LIKERT_VALUE, ScoreDirection.FORWARD, 1.0, null, null, false, null),

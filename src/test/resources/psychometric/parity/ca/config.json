@@ -15,7 +15,7 @@
   "composites": [
     { "name": "CA_overall", "method": "AGGREGATE_OF_CHILDREN_MEAN", "basis": "STEN",
       "children": ["attention_to_detail_sum","logical_reasoning_sum","numerical_reasoning_sum","verbal_reasoning_sum"] },
-    { "name": "IQ_overall", "method": "AGGREGATE_OF_CHILDREN_MEAN", "basis": "TSCORE",
+    { "name": "IQ_overall", "method": "AGGREGATE_OF_CHILDREN_MEAN", "basis": "TSCORE", "roundingScale": 0,
       "children": ["attention_to_detail_sum","logical_reasoning_sum","numerical_reasoning_sum","verbal_reasoning_sum"] }
   ]
 }

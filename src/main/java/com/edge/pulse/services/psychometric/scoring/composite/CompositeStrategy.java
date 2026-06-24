@@ -8,5 +8,5 @@ import java.util.UUID;
 
 public interface CompositeStrategy {
     CompositeMethod method();
-    ScaleScoreResult combine(UUID parentScaleId, CompositeBasis basis, List<ScaleScoreResult> children);
+    ScaleScoreResult combine(UUID parentScaleId, CompositeBasis basis, List<ScaleScoreResult> children, int roundingScale);
 }

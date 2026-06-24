@@ -14,7 +14,7 @@ public class AggregateOfChildrenStrategy implements CompositeStrategy {
     public AggregateOfChildrenStrategy(CompositeMethod method) { this.method = method; }
     public CompositeMethod method() { return method; }
 
-    public ScaleScoreResult combine(UUID parentId, CompositeBasis basis, List<ScaleScoreResult> children) {
+    public ScaleScoreResult combine(UUID parentId, CompositeBasis basis, List<ScaleScoreResult> children, int roundingScale) {
         Function<ScaleScoreResult, BigDecimal> pick =
                 basis == CompositeBasis.TSCORE ? ScaleScoreResult::tScore : ScaleScoreResult::stenScore;
         List<BigDecimal> vals = children.stream().map(pick).filter(java.util.Objects::nonNull).toList();
@@ -23,7 +23,7 @@ public class AggregateOfChildrenStrategy implements CompositeStrategy {
         BigDecimal agg = method == CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN
                 ? sum.divide(BigDecimal.valueOf(vals.size()), 4, RoundingMode.HALF_EVEN)
                 : sum;
-        BigDecimal rounded = agg.setScale(1, RoundingMode.HALF_EVEN);
+        BigDecimal rounded = agg.setScale(roundingScale, RoundingMode.HALF_EVEN);
         BigDecimal sten = basis == CompositeBasis.STEN ? rounded : null;
         BigDecimal t = basis == CompositeBasis.TSCORE ? rounded : null;
         return new ScaleScoreResult(parentId, null, null, sten, t, null, children.size(), children.size());

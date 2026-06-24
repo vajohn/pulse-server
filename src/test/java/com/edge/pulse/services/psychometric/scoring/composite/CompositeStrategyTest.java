@@ -22,7 +22,7 @@ class CompositeStrategyTest {
             child(new BigDecimal("7.0"), null), child(new BigDecimal("8.0"), null),
             child(new BigDecimal("6.0"), null), child(new BigDecimal("5.0"), null));
         ScaleScoreResult out = CompositeStrategies.of(CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN)
-                .combine(parent, CompositeBasis.STEN, children);
+                .combine(parent, CompositeBasis.STEN, children, 1);
         assertThat(out.stenScore()).isEqualByComparingTo("6.5");
     }
 
@@ -33,7 +33,19 @@ class CompositeStrategyTest {
             child(null, new BigDecimal("60")), child(null, new BigDecimal("70")),
             child(null, new BigDecimal("50")), child(null, new BigDecimal("40")));
         ScaleScoreResult out = CompositeStrategies.of(CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN)
-                .combine(parent, CompositeBasis.TSCORE, children);
+                .combine(parent, CompositeBasis.TSCORE, children, 1);
         assertThat(out.tScore()).isEqualByComparingTo("55.0");
+    }
+
+    @Test
+    void meanOfChildTScores_roundingScaleZero_yieldsInteger() {
+        // IQ_overall = round(mean(56.0, 57.0, 55.0, 56.5)) = round(56.125) = 56 (integer, 0 dp)
+        var children = List.of(
+            child(null, new BigDecimal("56.0")), child(null, new BigDecimal("57.0")),
+            child(null, new BigDecimal("55.0")), child(null, new BigDecimal("56.5")));
+        ScaleScoreResult out = CompositeStrategies.of(CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN)
+                .combine(parent, CompositeBasis.TSCORE, children, 0);
+        assertThat(out.tScore()).isEqualByComparingTo("56");
+        assertThat(out.tScore().scale()).isEqualTo(0);
     }
 }

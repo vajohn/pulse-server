@@ -106,6 +106,7 @@ public final class ParityFixtureLoader {
                 NormConfig norm = new NormConfig(NormStrategyType.PARAMETRIC,
                         new BigDecimal(s.get("mean").asText()), new BigDecimal(s.get("sd").asText()),
                         tFactor, tOffset, tClipLo, tClipHi, null);
+                Integer roundingScale = s.has("roundingScale") ? s.get("roundingScale").asInt() : null;
 
                 if (s.has("composite")) {
                     CompositeMethod cm = CompositeMethod.valueOf(s.get("composite").asText());
@@ -114,7 +115,7 @@ public final class ParityFixtureLoader {
                         for (JsonNode c : s.get("children")) childIds.add(scaleIdByName.get(c.asText()));
                     if (cm == CompositeMethod.AGGREGATE_OF_ITEMS) {
                         // children are leaf scales whose parentScaleId points here; raw = sum of children raw
-                        scales.add(new ScaleConfig(id, name, null, scoreMethod, cm, null, childIds, norm));
+                        scales.add(new ScaleConfig(id, name, null, scoreMethod, cm, null, childIds, norm, roundingScale));
                         // mark children's parent
                         for (JsonNode c : s.get("children")) {
                             // handled below when we rewrite leaves' parent
@@ -122,7 +123,7 @@ public final class ParityFixtureLoader {
                         }
                     } else {
                         CompositeBasis basis = CompositeBasis.valueOf(s.path("basis").asText("STEN"));
-                        scales.add(new ScaleConfig(id, name, null, scoreMethod, cm, basis, childIds, null));
+                        scales.add(new ScaleConfig(id, name, null, scoreMethod, cm, basis, childIds, null, roundingScale));
                     }
                     continue;
                 }
@@ -130,7 +131,7 @@ public final class ParityFixtureLoader {
                 if (s.has("precomputed")) {
                     precomputedScales.add(name);
                     precomputedKind.put(name, s.get("precomputed").asText());
-                    scales.add(new ScaleConfig(id, name, null, scoreMethod, null, null, null, norm));
+                    scales.add(new ScaleConfig(id, name, null, scoreMethod, null, null, null, norm, roundingScale));
                     // one synthetic forward LIKERT item carries the precomputed raw value
                     String q = "PRECOMP:" + name;
                     questionScale.put(q, name);
@@ -139,7 +140,7 @@ public final class ParityFixtureLoader {
                 }
 
                 // leaf (parentScaleId wired in the rewrite pass below)
-                scales.add(new ScaleConfig(id, name, null, scoreMethod, null, null, null, norm));
+                scales.add(new ScaleConfig(id, name, null, scoreMethod, null, null, null, norm, roundingScale));
                 if (s.has("normal"))
                     for (JsonNode q : s.get("normal")) {
                         questionScale.put(q.asText(), name);
@@ -158,7 +159,7 @@ public final class ParityFixtureLoader {
                 String parent = parentOf.get(sc.name());
                 if (parent != null && sc.compositeMethod() == null) {
                     rewritten.add(new ScaleConfig(sc.scaleId(), sc.name(), scaleIdByName.get(parent),
-                            sc.scoreMethod(), null, null, null, sc.norm()));
+                            sc.scoreMethod(), null, null, null, sc.norm(), sc.compositeRoundingScale()));
                 } else {
                     rewritten.add(sc);
                 }
@@ -276,7 +277,7 @@ public final class ParityFixtureLoader {
             NormConfig norm = new NormConfig(NormStrategyType.PARAMETRIC,
                     new BigDecimal(ss.get("mean").asText()), new BigDecimal(ss.get("sd").asText()),
                     tFactor, tOffset, tClipLo, tClipHi, null);
-            scales.add(new ScaleConfig(scaleId, name, null, ScoreMethod.SUM, null, null, null, norm));
+            scales.add(new ScaleConfig(scaleId, name, null, ScoreMethod.SUM, null, null, null, norm, null));
 
             // answer key (ANS row, Q1 at column index 3)
             List<String[]> keyRows = readCsv(dir + "/" + ss.get("key").asText());
@@ -329,7 +330,8 @@ public final class ParityFixtureLoader {
             CompositeBasis basis = CompositeBasis.valueOf(cj.get("basis").asText());
             List<UUID> childIds = new ArrayList<>();
             for (JsonNode c : cj.get("children")) childIds.add(scaleIdByName.get(c.asText()));
-            scales.add(new ScaleConfig(id, name, null, ScoreMethod.SUM, cm, basis, childIds, null));
+            Integer roundingScale = cj.has("roundingScale") ? cj.get("roundingScale").asInt() : null;
+            scales.add(new ScaleConfig(id, name, null, ScoreMethod.SUM, cm, basis, childIds, null, roundingScale));
         }
 
         // expected

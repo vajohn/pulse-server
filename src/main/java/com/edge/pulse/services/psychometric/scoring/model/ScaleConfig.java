@@ -12,5 +12,6 @@ public record ScaleConfig(
         CompositeMethod compositeMethod,   // null = leaf
         CompositeBasis compositeBasis,     // for AGGREGATE_OF_CHILDREN_*
         List<UUID> childScaleIds,
-        NormConfig norm                    // null if scale is not normed
+        NormConfig norm,                   // null if scale is not normed
+        Integer compositeRoundingScale     // null = default 1 dp for composite rollup
 ) {}

@@ -223,7 +223,8 @@ public class ScoringService {
                     cm,
                     s.getCompositeBasis(),
                     childScaleIds,
-                    norm));
+                    norm,
+                    null));
         }
 
         // ── Delegate to the pure calculator ───────────────────────────────────────

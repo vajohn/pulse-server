@@ -113,8 +113,9 @@ public class ScoringCalculator {
                 ScaleConfig sc = byId.get(p);
                 if (results.keySet().containsAll(sc.childScaleIds())) {
                     List<ScaleScoreResult> kids = sc.childScaleIds().stream().map(results::get).toList();
+                    int roundingScale = sc.compositeRoundingScale() != null ? sc.compositeRoundingScale() : 1;
                     results.put(p, CompositeStrategies.of(sc.compositeMethod())
-                            .combine(p, sc.compositeBasis(), kids));
+                            .combine(p, sc.compositeBasis(), kids, roundingScale));
                     it.remove(); progress = true;
                 }
             }
