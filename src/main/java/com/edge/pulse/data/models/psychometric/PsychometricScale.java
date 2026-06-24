@@ -2,6 +2,7 @@ package com.edge.pulse.data.models.psychometric;
 
 import com.edge.pulse.data.enums.CompositeBasis;
 import com.edge.pulse.data.enums.CompositeMethod;
+import com.edge.pulse.data.enums.ResultMode;
 import com.edge.pulse.data.enums.ScoreMethod;
 import jakarta.persistence.*;
 import lombok.*;
@@ -62,4 +63,11 @@ public class PsychometricScale {
     /** Decimal places for composite rollup rounding. NULL = default 1 dp. */
     @Column(name = "composite_rounding_scale")
     private Integer compositeRoundingScale;
+
+    /** How this scale's result is released (D3). IMMEDIATE = score when its items complete in a
+     *  session; CONSOLIDATED = accrue across micro-sessions and score only when full set answered. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "result_mode", nullable = false)
+    @Builder.Default
+    private ResultMode resultMode = ResultMode.IMMEDIATE;
 }
