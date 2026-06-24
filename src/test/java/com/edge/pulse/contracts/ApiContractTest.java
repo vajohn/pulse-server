@@ -1000,7 +1000,7 @@ class ApiContractTest {
 
         NormEntryDto dto = new NormEntryDto(
                 scaleId, "Verbal Reasoning",
-                7,
+                new BigDecimal("7"),
                 BigDecimal.valueOf(18.0), BigDecimal.valueOf(23.5),
                 BigDecimal.valueOf(75.0), BigDecimal.valueOf(0.67)
         );
@@ -1019,7 +1019,7 @@ class ApiContractTest {
     void normEntryDto_nullable_optional_fields_present_as_null() throws Exception {
         // percentile and zScore are optional — must serialize as null, not absent
         NormEntryDto dto = new NormEntryDto(
-                UUID.randomUUID(), "Numerical", 3,
+                UUID.randomUUID(), "Numerical", new BigDecimal("3"),
                 BigDecimal.valueOf(5), BigDecimal.valueOf(9),
                 null, null
         );

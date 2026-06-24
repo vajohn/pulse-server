@@ -54,4 +54,4 @@ ALTER TABLE scoring_key_item ADD COLUMN item_strategy VARCHAR(24);
 
 -- 6. Result state + validity status (computed in 1A; surfaced/gated in later plans)
 ALTER TABLE test_result ADD COLUMN result_state    VARCHAR(20) NOT NULL DEFAULT 'FINAL';
-ALTER TABLE test_result ADD COLUMN validity_status VARCHAR(20);
+ALTER TABLE test_result ADD COLUMN validity_status VARCHAR(24);

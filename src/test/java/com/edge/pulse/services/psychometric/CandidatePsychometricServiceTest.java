@@ -329,7 +329,7 @@ class CandidatePsychometricServiceTest {
                 .result(testResult)
                 .scale(scale)
                 .rawScore(new BigDecimal("32.000"))
-                .stenScore(7)
+                .stenScore(new BigDecimal("7"))
                 .percentile(new BigDecimal("75.00"))
                 .zScore(new BigDecimal("0.600"))
                 .itemsAnswered(10)

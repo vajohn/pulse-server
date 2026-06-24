@@ -480,7 +480,7 @@ class PsychometricAdminServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(scaleRepository.findAllById(any())).thenReturn(List.of());
 
-        var entry = new NormEntryRequest(scaleId, 5,
+        var entry = new NormEntryRequest(scaleId, new BigDecimal("5"),
                 BigDecimal.valueOf(10), BigDecimal.valueOf(15), null, null);
         assertThatThrownBy(() -> adminService.saveNormTable(testId, List.of(entry), userId))
                 .isInstanceOf(ResponseStatusException.class)

@@ -240,7 +240,7 @@ class ScoringServiceTest {
         verify(scaleScoreRepository, atLeastOnce()).save(captor.capture());
         ScaleScore ss = captor.getAllValues().stream()
                 .filter(s -> s.getScale().getId().equals(scaleId)).findFirst().orElseThrow();
-        assertThat(ss.getStenScore()).isEqualTo(6);
+        assertThat(ss.getStenScore()).isEqualByComparingTo(new BigDecimal("6"));
         assertThat(ss.getPercentile()).isEqualByComparingTo(new BigDecimal("50.00"));
         assertThat(ss.getZScore()).isEqualByComparingTo("0.000");
     }
