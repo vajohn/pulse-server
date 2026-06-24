@@ -268,6 +268,7 @@ public class PsychometricAdminService {
                 .compositeMethod(req.compositeMethod())
                 .compositeBasis(req.compositeBasis())
                 .compositeRoundingScale(req.compositeRoundingScale())
+                .restricted(req.restricted())
                 .build();
         scaleRepository.save(scale);
 

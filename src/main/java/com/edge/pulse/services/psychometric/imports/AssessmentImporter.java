@@ -286,7 +286,8 @@ public class AssessmentImporter {
                         0,                                             // displayOrder
                         s.compositeMethod(),
                         s.compositeBasis(),
-                        s.roundingScale());
+                        s.roundingScale(),
+                        s.restricted());
                 PsychometricScaleDto created = admin.createScale(testId, req, userId);
                 scaleIdByName.put(s.name(), created.scaleId());
                 progressed = true;

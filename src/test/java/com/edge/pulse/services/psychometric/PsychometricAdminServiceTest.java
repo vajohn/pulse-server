@@ -560,7 +560,8 @@ class PsychometricAdminServiceTest {
                 0,      // displayOrder
                 CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN,
                 CompositeBasis.TSCORE,
-                0       // compositeRoundingScale — integer precision (0 dp)
+                0,      // compositeRoundingScale — integer precision (0 dp)
+                false   // restricted
         );
 
         var dto = adminService.createScale(testId, req, userId);

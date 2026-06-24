@@ -26,5 +26,7 @@ public record CreateScaleRequest(
         /** Which score type child scales contribute when this is a composite. NULL for leaf scales. */
         CompositeBasis compositeBasis,
         /** Decimal places for composite rollup rounding. NULL = default 1 dp. */
-        Integer compositeRoundingScale
+        Integer compositeRoundingScale,
+        /** CWB / validity scales (§6.3): interpreter-only, never aggregated/trended (D3). */
+        boolean restricted
 ) {}
