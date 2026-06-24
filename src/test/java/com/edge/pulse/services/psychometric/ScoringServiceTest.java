@@ -223,7 +223,8 @@ class ScoringServiceTest {
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
         AnswerScale answer = buildScaleAnswer(3, 1, 5);
         // raw = 3 (value 3, FORWARD, weight 1). mean=3, sd=1 → z=0 → sten=5.5 (decimal), percentile=50.00
-        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID()).build();
+        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID())
+                .normStrategy(NormStrategyType.PARAMETRIC).build();
         NormScaleParam param = NormScaleParam.builder()
                 .normTable(norm).scale(scale)
                 .mean(new BigDecimal("3")).sd(new BigDecimal("1"))
@@ -259,6 +260,7 @@ class ScoringServiceTest {
         ArgumentCaptor<TestResult> captor = ArgumentCaptor.forClass(TestResult.class);
         verify(testResultRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(TestResultStatus.SCORED);
+        assertThat(captor.getValue().getResultState()).isEqualTo(ResultState.FINAL);
         assertThat(captor.getValue().getScoredAt()).isNotNull();
         assertThat(captor.getValue().getScoringKeyVersion()).isEqualTo(activeKey);
     }
@@ -272,7 +274,8 @@ class ScoringServiceTest {
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
         AnswerScale answer = buildScaleAnswer(3, 1, 5);
 
-        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID()).build();
+        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID())
+                .normStrategy(NormStrategyType.PARAMETRIC).build();
         NormScaleParam param = NormScaleParam.builder()
                 .normTable(norm).scale(scale)
                 .mean(new BigDecimal("2")).sd(new BigDecimal("2"))
@@ -310,7 +313,8 @@ class ScoringServiceTest {
         ScoringKeyItem item = buildScaleItem(ScoreDirection.FORWARD, BigDecimal.ONE, null);
         AnswerScale answer = buildScaleAnswer(1, 1, 5);
 
-        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID()).build();
+        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID())
+                .normStrategy(NormStrategyType.PARAMETRIC).build();
         NormScaleParam param = NormScaleParam.builder()
                 .normTable(norm).scale(scale)
                 .mean(new BigDecimal("6")).sd(new BigDecimal("4"))

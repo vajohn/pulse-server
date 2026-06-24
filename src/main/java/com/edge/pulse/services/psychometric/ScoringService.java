@@ -130,7 +130,7 @@ public class ScoringService {
 
         // Batch-load the multi-select correct-answer sets for ANSWER_KEY_MULTIPLE items
         List<UUID> multipleChoiceItemIds = items.stream()
-                .filter(i -> i.getQuestion().getQuestionType() == QuestionType.CHOICE_MULTIPLE)
+                .filter(i -> resolveStrategy(i) == ItemStrategyType.ANSWER_KEY_MULTIPLE)
                 .map(ScoringKeyItem::getId)
                 .toList();
         Map<UUID, List<UUID>> correctAnswerIdsByItem = multipleChoiceItemIds.isEmpty()
