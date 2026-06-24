@@ -33,6 +33,15 @@ Each stage of the pipeline is a **named, pluggable strategy** (no math literals 
 - `composite/` — **`CompositeStrategy`** + `AggregateOfChildrenStrategy` (mean/sum of children's *standardized* scores) and the `AGGREGATE_OF_ITEMS` path. Selected via `CompositeStrategies`.
 - `model/` — pure config/result records (`ItemConfig`, `ScaleConfig`, `NormConfig`, `ItemResponse`, `ScaleScoreResult`, `ScoringInput`, `ScoringOutput`).
 
+```mermaid
+flowchart LR
+  R[Candidate responses] --> I["Item strategy<br/>LIKERT_VALUE / ANSWER_KEY / BINARY_FORCED_CHOICE / OPTION_TAGGED_TALLY"]
+  I --> AG["Aggregate per scale<br/>(SUM or MEAN)"]
+  AG --> N["Standardize<br/>PARAMETRIC (mean/SD -> STEN+T) or EMPIRICAL_PERCENTILE"]
+  N --> C["Composites<br/>AGGREGATE_OF_ITEMS / AGGREGATE_OF_CHILDREN"]
+  C --> P[("Persist scale_score<br/>decimal STEN + T-score")]
+```
+
 **Precision rule:** STEN/T/z are computed and stored at full precision; rounding happens **once**, at display, never chained. The notebooks round with numpy `.round()` (banker's rounding), so display rounding uses `RoundingMode.HALF_EVEN`. The parity harness is the arbiter — if a value mismatches, suspect the rounding mode first.
 
 ### Parity harness
@@ -56,7 +65,28 @@ An assessment package is **three CSVs** — `questions.csv`, `answer_key.csv`, `
 
 - Parts: `questions`, `answerKey`, `scoringSheet` (files); params `testName`, `testType` (`PERSONALITY|COGNITIVE|COMPETENCY`), optional `description`, `timeLimitSecs`.
 - On any parse or referential error → **HTTP 422** with an `ImportResultDto` carrying a list of `ImportError {file, row, column, message}`; nothing is imported.
-- On success → the test is created in **DRAFT** (HR activates it separately). Note: the importer currently produces an **ACTIVE scoring key + VALIDATED norms** directly — the staging/provisional promote workflow is not yet implemented.
+- On success → the test is created in **DRAFT** with its scoring key **ACTIVE** and its norms **VALIDATED**. This is by design: Beacon Red delivers finalized norms and scale-maps, so the importer applies them directly with no staging step. The human review gate is the **test lifecycle status** — a test must be explicitly activated (`POST /tests/{id}/activate`) before it can be assigned or taken. Re-importing always creates a **new DRAFT test**; it never hot-swaps a live one, so there is no separate stage → promote step for keys or norms.
+
+```mermaid
+sequenceDiagram
+  actor HR
+  participant Dash as Dashboard
+  participant API as Import endpoint
+  participant Parser as AssessmentPackageParser
+  participant Importer as AssessmentImporter (@Transactional)
+  participant DB
+  HR->>Dash: upload questions/answerKey/scoringSheet + name/type
+  Dash->>API: POST /api/admin/psychometric/import-package
+  API->>Parser: parse + validate
+  alt invalid
+    Parser-->>API: ImportError[]
+    API-->>Dash: 422 (refuse-partial, nothing imported)
+  else valid
+    API->>Importer: importPackage(...)
+    Importer->>DB: test(DRAFT) + questions + scales + ACTIVE key + VALIDATED norms
+    API-->>Dash: 200 ImportResult{questions,scales,items,normParams}
+  end
+```
 
 Adjacent admin endpoints (`AdminPsychometricController`, base `/api/admin/psychometric`): `POST /tests/{id}/activate`, `PUT /tests/{id}/visibility-policy`, `GET /tests/{id}/results`, `/results/{resultId}`, `/tests/{id}/analytics`. Assignment reuses `POST /api/admin/form-assignments/assign`.
 
