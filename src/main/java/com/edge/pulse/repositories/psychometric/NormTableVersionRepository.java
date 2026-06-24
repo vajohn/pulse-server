@@ -22,8 +22,18 @@ public interface NormTableVersionRepository extends JpaRepository<NormTableVersi
     @Query("SELECT MAX(v.version) FROM NormTableVersion v WHERE v.test.id = :testId")
     Optional<Integer> findMaxVersionByTestId(@Param("testId") UUID testId);
 
-    /** Deprecates all VALIDATED norm tables for a test — called before promoting a new one. */
-    @Modifying(clearAutomatically = true)
+    /**
+     * Deprecates all VALIDATED norm tables for a test — called before promoting a new one.
+     *
+     * <p>{@code flushAutomatically = true} is required alongside {@code clearAutomatically = true}.
+     * In {@code AssessmentImporter.importPackage} this method runs immediately after
+     * {@code saveScoringKey} has staged (but not yet flushed) the {@code ScoringKeyVersion} and
+     * {@code ScoringKeyItem} inserts in the same transaction. Because this bulk UPDATE targets an
+     * unrelated table, Hibernate's query-space auto-flush would NOT flush those scoring-key inserts;
+     * the subsequent {@code clear()} would then discard them, so the import would report success
+     * with the scoring key missing. Flushing before clearing guarantees they are written.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE NormTableVersion v SET v.status = 'DEPRECATED' WHERE v.test.id = :testId AND v.status = 'VALIDATED'")
     int deprecateValidatedNormsByTestId(@Param("testId") UUID testId);
 }

@@ -22,8 +22,15 @@ public interface ScoringKeyVersionRepository extends JpaRepository<ScoringKeyVer
     @Query("SELECT MAX(v.version) FROM ScoringKeyVersion v WHERE v.test.id = :testId")
     Optional<Integer> findMaxVersionByTestId(@Param("testId") UUID testId);
 
-    /** Deprecates all currently ACTIVE keys for a test — called atomically before publishing a new one. */
-    @Modifying(clearAutomatically = true)
+    /**
+     * Deprecates all currently ACTIVE keys for a test — called atomically before publishing a new one.
+     *
+     * <p>{@code flushAutomatically = true} is required alongside {@code clearAutomatically = true}:
+     * this bulk UPDATE clears the persistence context afterwards, and without flushing first any
+     * pending (unflushed) inserts — e.g. the {@code ScoringKeyVersion}/{@code ScoringKeyItem} rows
+     * being staged in the same import transaction — would be silently discarded by the clear.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE ScoringKeyVersion v SET v.status = 'DEPRECATED' WHERE v.test.id = :testId AND v.status = 'ACTIVE'")
     int deprecateActiveKeysByTestId(@Param("testId") UUID testId);
 }
