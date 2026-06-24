@@ -1,5 +1,6 @@
 package com.edge.pulse.controllers;
 
+import com.edge.pulse.data.dto.psychometric.imports.ImportError;
 import com.edge.pulse.data.dto.psychometric.imports.ImportPackageRequest;
 import com.edge.pulse.data.dto.psychometric.imports.ImportResultDto;
 import com.edge.pulse.data.enums.TestType;
@@ -60,10 +61,19 @@ public class AdminAssessmentImportController {
                     .body(new ImportResultDto(false, null, 0, 0, 0, 0, outcome.errors()));
         }
 
-        ImportResultDto result = importer.importPackage(
-                new ImportPackageRequest(testName, description, testType, timeLimitSecs),
-                outcome.pkg(),
-                (UUID) auth.getPrincipal());
+        ImportResultDto result;
+        try {
+            result = importer.importPackage(
+                    new ImportPackageRequest(testName, description, testType, timeLimitSecs),
+                    outcome.pkg(),
+                    (UUID) auth.getPrincipal());
+        } catch (IllegalArgumentException ex) {
+            // Importer-side runtime validation failure (e.g. unresolved reference): return the
+            // same 422 error envelope as a parse failure so the client sees one consistent shape.
+            return ResponseEntity.unprocessableEntity()
+                    .body(new ImportResultDto(false, null, 0, 0, 0, 0,
+                            List.of(new ImportError("package", "-", "-", ex.getMessage()))));
+        }
 
         return ResponseEntity.ok(result);
     }

@@ -32,6 +32,15 @@ class CsvReaderTest {
     }
 
     @Test
+    void quotedNewline_treatedAsFieldContent_notRowSeparator() {
+        // A \n inside a quoted field is field content, not a row separator → 1 data row.
+        String csv = "h1,h2\n\"line1\nline2\",b\n";
+        List<Map<String, String>> rows = CsvReader.parse(csv);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)).containsEntry("h1", "line1\nline2").containsEntry("h2", "b");
+    }
+
+    @Test
     void quotedEmptyCells_notDroppedAsBlankLine() {
         // A row with only quoted-empty cells must survive the rowHasContent guard
         String csv = "h1,h2\n\"\",\"\"\n";

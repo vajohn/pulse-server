@@ -73,6 +73,32 @@ class AssessmentPackageParserTest {
     }
 
     @Test
+    void reportsBlankScaleName() {
+        // A scale row with a blank name should produce a required-name error
+        String sheetBlankName =
+            "rowType,name,parentName,scoreMethod,normStrategy,mean,sd,tFactor,tOffset,tClipLo,tClipHi,compositeMethod,compositeBasis,childScales,roundingScale,restricted,questionHeader,scaleName,direction,itemStrategy,weight,tagScaleName\n" +
+            "scale,,,SUM,,,,,,,,,,,,,,,,,,\n";
+        var result = new AssessmentPackageParser().parse(questions, answerKey, sheetBlankName);
+        assertThat(result.errors()).anyMatch(e ->
+                e.file().equals("scoring_sheet.csv")
+                && e.column().equals("name")
+                && e.message().contains("scale name is required"));
+    }
+
+    @Test
+    void reportsMissingScoreMethodOnScaleRow() {
+        // A scale row with no scoreMethod should produce a required-scoreMethod error
+        String sheetNoScoreMethod =
+            "rowType,name,parentName,scoreMethod,normStrategy,mean,sd,tFactor,tOffset,tClipLo,tClipHi,compositeMethod,compositeBasis,childScales,roundingScale,restricted,questionHeader,scaleName,direction,itemStrategy,weight,tagScaleName\n" +
+            "scale,Agility,,,,,,,,,,,,,,,,,,,,\n";
+        var result = new AssessmentPackageParser().parse(questions, answerKey, sheetNoScoreMethod);
+        assertThat(result.errors()).anyMatch(e ->
+                e.file().equals("scoring_sheet.csv")
+                && e.column().equals("scoreMethod")
+                && e.message().contains("scoreMethod is required for scale rows"));
+    }
+
+    @Test
     void reportsUnknownAnswerKeyColumn() {
         // The ANS row references a column (QUNKNOWN) that is not a parsed question header
         String badAnswerKey = "header,Q1,QUNKNOWN\nANS,2,1\n";

@@ -113,4 +113,32 @@ class AdminAssessmentImportControllerTest {
 
         verify(importer, never()).importPackage(any(), any(), any());
     }
+
+    // -------------------------------------------------------------------------
+    // Importer runtime failure (IllegalArgumentException) -> 422 with errors (I1)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void import_importerThrowsIllegalArgument_returns422WithErrors() throws Exception {
+        when(importer.importPackage(any(), any(), any()))
+                .thenThrow(new IllegalArgumentException("unresolved tag scale reference"));
+
+        var q = new MockMultipartFile("questions", "questions.csv", "text/csv",
+                VALID_QUESTIONS.getBytes());
+        var k = new MockMultipartFile("answerKey", "answer_key.csv", "text/csv",
+                VALID_ANSWER_KEY.getBytes());
+        var s = new MockMultipartFile("scoringSheet", "scoring_sheet.csv", "text/csv",
+                VALID_SCORING_SHEET.getBytes());
+
+        mvc.perform(multipart("/api/admin/psychometric/import-package")
+                        .file(q).file(k).file(s)
+                        .param("testName", "ATP")
+                        .param("testType", "PERSONALITY")
+                        .principal(new UsernamePasswordAuthenticationToken(
+                                UUID.randomUUID(), null, List.of())))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(jsonPath("$.errors[0].message").value("unresolved tag scale reference"));
+    }
 }

@@ -151,6 +151,16 @@ public class AssessmentPackageParser {
             String rowLabel = "scale-row-" + (r + 1);
             String name = row.getOrDefault("name", "").trim();
 
+            // Required-field validation (I4/M3): scale rows must carry a name and a scoreMethod.
+            if (name.isBlank()) {
+                errors.add(new ImportError("scoring_sheet.csv", rowLabel, "name",
+                        "scale name is required"));
+            }
+            if (row.getOrDefault("scoreMethod", "").trim().isBlank()) {
+                errors.add(new ImportError("scoring_sheet.csv", rowLabel, "scoreMethod",
+                        "scoreMethod is required for scale rows"));
+            }
+
             ScoreMethod scoreMethod = parseEnum(ScoreMethod.class, row, "scoreMethod", rowLabel,
                     "scoring_sheet.csv", errors);
             NormStrategyType normStrategy = parseEnum(NormStrategyType.class, row, "normStrategy",

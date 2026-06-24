@@ -68,6 +68,9 @@ public class AssessmentImporter {
         Map<String, Map<Integer, UUID>> optionIdByHeaderValue = new HashMap<>();
         for (ParsedQuestion q : pkg.questions()) {
             QuestionType qType = questionTypeFor(pkg, q.header());
+            // TODO(Phase-1D): populate CandidateAnswer.tagScaleId from the scoring sheet's per-option
+            // tag for OPTION_TAGGED_TALLY (VIP); options currently import with tag_scale_id=NULL so VIP
+            // scores nothing until wired.
             List<CandidateAnswerDto> opts = q.options().stream()
                     .map(o -> new CandidateAnswerDto(null, o.labelEn(), o.labelAr(), o.displayOrder()))
                     .toList();

@@ -613,6 +613,108 @@ class ScoringServiceTest {
         assertThat(ss.getItemsAnswered()).isEqualTo(1);
     }
 
+    // ── AGGREGATE_OF_ITEMS composite parent JPA path (C1) ─────────────────────
+
+    /**
+     * Regression for C1: an AGGREGATE_OF_ITEMS parent scale (e.g. PTI CONTROL) that has
+     * FK children must NOT be dropped by the composite consistency guard — it must be
+     * built into a ScaleConfig (with its own norm) and scored through scoreSession.
+     *
+     * <p>Setup: parent CONTROL (compositeMethod=AGGREGATE_OF_ITEMS, own mean/sd norm) with
+     * two leaf child scales (parentScale=CONTROL), each owning one SCALE item answered 3 on
+     * a 1-5 scale. The calculator sums the children's raw (3 + 3 = 6) into CONTROL, then
+     * standardizes via CONTROL's norm. Asserts the persisted CONTROL ScaleScore has a
+     * non-null stenScore (i.e. it was scored, not silently dropped).
+     */
+    @Test
+    void scoreSession_aggregateOfItemsComposite_scoresParentFromChildren() {
+        // Parent composite scale with its own parametric norm
+        PsychometricScale control = PsychometricScale.builder()
+                .id(UUID.randomUUID()).test(psychTest).name("CONTROL")
+                .scoreMethod(ScoreMethod.SUM)
+                .compositeMethod(CompositeMethod.AGGREGATE_OF_ITEMS)
+                .build();
+
+        // Two leaf children pointing at CONTROL via parentScale FK
+        PsychometricScale childA = PsychometricScale.builder()
+                .id(UUID.randomUUID()).test(psychTest).name("CONTROL_A")
+                .scoreMethod(ScoreMethod.SUM).parentScale(control).build();
+        PsychometricScale childB = PsychometricScale.builder()
+                .id(UUID.randomUUID()).test(psychTest).name("CONTROL_B")
+                .scoreMethod(ScoreMethod.SUM).parentScale(control).build();
+
+        UUID qA = UUID.randomUUID();
+        UUID qB = UUID.randomUUID();
+        Question questionA = Question.builder().id(qA).questionType(QuestionType.SCALE).build();
+        Question questionB = Question.builder().id(qB).questionType(QuestionType.SCALE).build();
+
+        ScoringKeyItem itemA = ScoringKeyItem.builder()
+                .id(UUID.randomUUID()).scale(childA).question(questionA)
+                .direction(ScoreDirection.FORWARD).weight(BigDecimal.ONE).build();
+        ScoringKeyItem itemB = ScoringKeyItem.builder()
+                .id(UUID.randomUUID()).scale(childB).question(questionB)
+                .direction(ScoreDirection.FORWARD).weight(BigDecimal.ONE).build();
+
+        // Each child answered 3 → child raw = 3; parent raw = 3 + 3 = 6
+        AnswerSubmission subA = AnswerSubmission.builder().id(UUID.randomUUID()).question(questionA).build();
+        AnswerScale ansA = AnswerScale.builder().id(UUID.randomUUID())
+                .submission(subA).value(3).minValue(1).maxValue(5).build();
+        AnswerSubmission subB = AnswerSubmission.builder().id(UUID.randomUUID()).question(questionB).build();
+        AnswerScale ansB = AnswerScale.builder().id(UUID.randomUUID())
+                .submission(subB).value(3).minValue(1).maxValue(5).build();
+
+        // Parent norm: mean=6, sd=2 → parent raw 6 → z=0 → sten=5.5 (non-null)
+        NormTableVersion norm = NormTableVersion.builder().id(UUID.randomUUID())
+                .normStrategy(NormStrategyType.PARAMETRIC).build();
+        NormScaleParam controlParam = NormScaleParam.builder()
+                .normTable(norm).scale(control)
+                .mean(new BigDecimal("6")).sd(new BigDecimal("2"))
+                .tFactor(new BigDecimal("10")).tOffset(new BigDecimal("50"))
+                .tClipLo(new BigDecimal("10")).tClipHi(new BigDecimal("120")).build();
+
+        when(testRepository.findByFormId(surveyId)).thenReturn(Optional.of(psychTest));
+        when(testResultRepository.findBySessionId(sessionId)).thenReturn(Optional.empty());
+        when(scoringKeyVersionRepository.findFirstByTestIdAndStatus(testId, ScoringKeyStatus.ACTIVE))
+                .thenReturn(Optional.of(activeKey));
+        when(scoringKeyItemRepository.findByScoringKeyIdWithDetails(activeKey.getId()))
+                .thenReturn(List.of(itemA, itemB));
+        when(answerScaleRepository.findCurrentBySessionId(sessionId))
+                .thenReturn(List.of(ansA, ansB));
+        when(answerChoiceRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(answerAdjectiveRepository.findCurrentBySessionId(sessionId)).thenReturn(List.of());
+        lenient().when(scoringKeyCorrectAnswerRepository.findByItemIdIn(any())).thenReturn(List.of());
+        when(scaleRepository.findByTestId(testId)).thenReturn(List.of(control, childA, childB));
+        when(normTableVersionRepository.findFirstByTestIdAndStatus(testId, NormStatus.VALIDATED))
+                .thenReturn(Optional.of(norm));
+        // Children have no norm; only the parent CONTROL is normed
+        when(normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), control.getId()))
+                .thenReturn(Optional.of(controlParam));
+        lenient().when(normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), childA.getId()))
+                .thenReturn(Optional.empty());
+        lenient().when(normScaleParamRepository.findByNormTable_IdAndScale_Id(norm.getId(), childB.getId()))
+                .thenReturn(Optional.empty());
+
+        TestResult savedResult = TestResult.builder().id(UUID.randomUUID())
+                .status(TestResultStatus.SCORED).scoringKeyVersion(activeKey).build();
+        when(testResultRepository.save(any())).thenReturn(savedResult);
+        lenient().when(competencyScaleWeightRepository.findByScaleIdIn(any())).thenReturn(List.of());
+        when(scaleScoreRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        scoringService.scoreSession(session);
+
+        ArgumentCaptor<ScaleScore> captor = ArgumentCaptor.forClass(ScaleScore.class);
+        verify(scaleScoreRepository, atLeastOnce()).save(captor.capture());
+        ScaleScore controlScore = captor.getAllValues().stream()
+                .filter(s -> s.getScale().getId().equals(control.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("CONTROL composite was dropped — no ScaleScore persisted"));
+
+        // Proves the AGGREGATE_OF_ITEMS parent was scored (not skipped): raw=6, sten non-null
+        assertThat(controlScore.getRawScore()).isEqualByComparingTo(new BigDecimal("6.000"));
+        assertThat(controlScore.getStenScore()).isNotNull();
+        assertThat(controlScore.getStenScore()).isEqualByComparingTo(new BigDecimal("5.5"));
+    }
+
     private ScoringKeyItem buildForcedChoiceItem(ScoreDirection direction, BigDecimal weight) {
         Question q = Question.builder().id(questionId)
                 .questionType(QuestionType.FORCED_CHOICE).build();

@@ -197,9 +197,15 @@ public class ScoringService {
             CompositeMethod cm = s.getCompositeMethod();
             List<UUID> children = childrenByParent.getOrDefault(s.getId(), List.of());
 
-            // ── Carry-forward consistency guard ──────────────────────────────────
-            // AGGREGATE_OF_CHILDREN_* must have children; leaf/AGGREGATE_OF_ITEMS must not
-            // claim a child set it does not own (i.e. it must derive from items, not children).
+            // ── Composite consistency guard ──────────────────────────────────────
+            // Only skip a *declared* AGGREGATE_OF_CHILDREN_* composite that is internally
+            // inconsistent because it has no child scales to aggregate. Everything else is
+            // legitimate and must be built into a ScaleConfig:
+            //   • AGGREGATE_OF_ITEMS parents derive their raw from their children's raw via
+            //     the children's parentScale FK (ScoringCalculator#rollupRawComposites), so
+            //     having FK children is expected — include them with their own norm.
+            //   • leaf scales (null composite method) are scored from their own items; a leaf
+            //     that other scales point to as parent is still just a leaf — include it.
             boolean aggregatesChildren = cm == CompositeMethod.AGGREGATE_OF_CHILDREN_MEAN
                     || cm == CompositeMethod.AGGREGATE_OF_CHILDREN_SUM;
             if (aggregatesChildren && children.isEmpty()) {
@@ -207,13 +213,10 @@ public class ScoringService {
                         s.getId(), s.getName(), cm);
                 continue;
             }
-            if (!aggregatesChildren && !children.isEmpty()) {
-                log.warn("ScoringService: scale {} ({}) has child scales but composite method {} does not "
-                        + "aggregate children — skipping to avoid an incorrect score",
-                        s.getId(), s.getName(), cm);
-                continue;
-            }
 
+            // AGGREGATE_OF_CHILDREN_* aggregate standardized children (passed explicitly);
+            // AGGREGATE_OF_ITEMS parents rebuild their children from the parentScale FK inside
+            // the calculator, so they carry no explicit childScaleIds.
             List<UUID> childScaleIds = aggregatesChildren ? children : List.of();
             NormConfig norm = buildNormConfig(normOpt.orElse(null), s.getId());
 
