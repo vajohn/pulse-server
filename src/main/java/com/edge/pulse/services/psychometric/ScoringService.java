@@ -5,7 +5,9 @@ import com.edge.pulse.data.enums.ItemStrategyType;
 import com.edge.pulse.data.enums.NormStatus;
 import com.edge.pulse.data.enums.NormStrategyType;
 import com.edge.pulse.data.enums.QuestionType;
+import com.edge.pulse.data.enums.ResultMode;
 import com.edge.pulse.data.enums.ResultState;
+import com.edge.pulse.data.enums.ScaleProgressState;
 import com.edge.pulse.data.enums.ScoreDirection;
 import com.edge.pulse.data.enums.ScoringKeyStatus;
 import com.edge.pulse.data.enums.TestResultStatus;
@@ -78,6 +80,8 @@ public class ScoringService {
     private final ScoringKeyCorrectAnswerRepository scoringKeyCorrectAnswerRepository;
     private final CompetencyScaleWeightRepository competencyScaleWeightRepository;
     private final CompetencyScoreRepository competencyScoreRepository;
+    private final UserItemExposureRepository userItemExposureRepository;
+    private final ScaleProgressRepository scaleProgressRepository;
 
     /**
      * Entry point called from {@link com.edge.pulse.services.SessionService} after
@@ -192,8 +196,30 @@ public class ScoringService {
             }
         }
 
+        // ── Micro-engagement accrual (Phase 3) ─────────────────────────────────────
+        // Record item exposure for every answered question and advance per-scale accrual
+        // progress for CONSOLIDATED scales. Returns the live progress rows keyed by scaleId.
+        Map<UUID, ScaleProgress> progressByScale =
+                accrueExposureAndProgress(session, test, items, responsesByQuestion, normOpt, allScales);
+
         List<ScaleConfig> scaleConfigs = new ArrayList<>(allScales.size());
         for (PsychometricScale s : allScales) {
+            // ── Consolidation gating (Phase 3, D3/§6.1) ───────────────────────────
+            // CONSOLIDATED scales release only once their full required item set has accrued;
+            // a below-predicate CONSOLIDATED scale is skipped entirely (never a partial STEN).
+            if (s.getResultMode() == ResultMode.CONSOLIDATED) {
+                ScaleProgress p = progressByScale.get(s.getId());
+                boolean releasable = p != null && p.getItemsCollected() >= p.getItemsRequired();
+                if (!releasable) {
+                    continue;
+                }
+                if (p.getState() != ScaleProgressState.CONSOLIDATED) {
+                    p.setState(ScaleProgressState.CONSOLIDATED);
+                    p.setConsolidatedAt(LocalDateTime.now());
+                    scaleProgressRepository.save(p);
+                }
+            }
+
             CompositeMethod cm = s.getCompositeMethod();
             List<UUID> children = childrenByParent.getOrDefault(s.getId(), List.of());
 
@@ -218,7 +244,19 @@ public class ScoringService {
             // AGGREGATE_OF_ITEMS parents rebuild their children from the parentScale FK inside
             // the calculator, so they carry no explicit childScaleIds.
             List<UUID> childScaleIds = aggregatesChildren ? children : List.of();
-            NormConfig norm = buildNormConfig(normOpt.orElse(null), s.getId());
+            // CONSOLIDATED scales norm against the version FROZEN for their window (D4),
+            // never the live VALIDATED one — a mid-accrual re-norming must not switch the norm.
+            NormTableVersion normForScale = normOpt.orElse(null);
+            if (s.getResultMode() == ResultMode.CONSOLIDATED) {
+                ScaleProgress p = progressByScale.get(s.getId());
+                if (p != null && p.getNormTableVersionId() != null) {
+                    normForScale = normTableVersionRepository.findById(p.getNormTableVersionId())
+                            .orElse(normForScale);
+                } else if (p != null) {
+                    normForScale = null; // no norm was pinned at window open
+                }
+            }
+            NormConfig norm = buildNormConfig(normForScale, s.getId());
 
             scaleConfigs.add(new ScaleConfig(
                     s.getId(),
@@ -236,6 +274,14 @@ public class ScoringService {
         ScoringOutput output = new ScoringCalculator()
                 .calculate(new ScoringInput(scaleConfigs, itemConfigs, responsesByQuestion));
 
+        // ── Result state (Phase 3, D3) ─────────────────────────────────────────────
+        // PROVISIONAL while any CONSOLIDATED scale is still accruing; FINAL once every
+        // required scale has released. IMMEDIATE-only tests have no COLLECTING progress
+        // rows → FINAL (zero behaviour change for Phase-1/2 tests).
+        boolean anyStillCollecting = progressByScale.values().stream()
+                .anyMatch(p -> p.getState() == ScaleProgressState.COLLECTING);
+        ResultState resultState = anyStillCollecting ? ResultState.PROVISIONAL : ResultState.FINAL;
+
         // ── Persist TestResult ───────────────────────────────────────────────────
         TestResult result = TestResult.builder()
                 .test(test)
@@ -243,7 +289,7 @@ public class ScoringService {
                 .scoringKeyVersion(key)
                 .normTableVersion(normOpt.orElse(null))
                 .status(TestResultStatus.SCORED)
-                .resultState(ResultState.FINAL)
+                .resultState(resultState)
                 .scoredAt(LocalDateTime.now())
                 .focusLossCount(session.getFocusLossCount())
                 .build();
@@ -431,6 +477,92 @@ public class ScoringService {
                 .focusLossCount(session.getFocusLossCount())
                 .build();
         testResultRepository.save(result);
+    }
+
+    /**
+     * Micro-engagement accrual (Phase 3, D3/D4).
+     *
+     * <p>Records {@link UserItemExposure} (answeredAt = now) for every question answered in this
+     * session, then advances per-scale {@link ScaleProgress} for every CONSOLIDATED scale that has
+     * scoring-key items. For a CONSOLIDATED scale the open ({@code COLLECTING}) window is reused if
+     * one exists, otherwise a fresh window is opened — {@code itemsRequired} = the count of that
+     * scale's scoring-key items, and the norm version is FROZEN ({@code normTableVersionId}) at the
+     * live VALIDATED version when the window opens (D4). {@code itemsCollected} is incremented by the
+     * number of that scale's items answered in this session.
+     *
+     * @return live {@link ScaleProgress} rows keyed by scaleId (only CONSOLIDATED scales appear).
+     */
+    private Map<UUID, ScaleProgress> accrueExposureAndProgress(
+            ResponseSession session, PsychometricTest test, List<ScoringKeyItem> items,
+            Map<UUID, ItemResponse> responsesByQuestion, Optional<NormTableVersion> normOpt,
+            List<PsychometricScale> allScales) {
+
+        UUID userId = (session.getUser() != null) ? session.getUser().getId() : null;
+        if (userId == null) {
+            // Anonymous sessions cannot accrue per-user progress — nothing to consolidate.
+            return Map.of();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Record exposure (answered) for every answered question — composite-PK upsert.
+        for (UUID questionId : responsesByQuestion.keySet()) {
+            UserItemExposure exposure = userItemExposureRepository
+                    .findById(new UserItemExposureId(userId, questionId))
+                    .orElseGet(() -> UserItemExposure.builder()
+                            .userId(userId).questionId(questionId).testId(test.getId())
+                            .firstSeen(now).build());
+            exposure.setAnsweredAt(now);
+            userItemExposureRepository.save(exposure);
+        }
+
+        // 2. Per-scale: total scoring-key items (= itemsRequired) and answered-this-session count.
+        Map<UUID, Integer> itemsRequiredByScale = new HashMap<>();
+        Map<UUID, Integer> answeredThisSessionByScale = new HashMap<>();
+        for (ScoringKeyItem item : items) {
+            UUID scaleId = item.getScale().getId();
+            itemsRequiredByScale.merge(scaleId, 1, Integer::sum);
+            if (responsesByQuestion.containsKey(item.getQuestion().getId())) {
+                answeredThisSessionByScale.merge(scaleId, 1, Integer::sum);
+            }
+        }
+
+        // 3. Advance progress for CONSOLIDATED scales only.
+        Map<UUID, ScaleProgress> existingByScale = scaleProgressRepository
+                .findByUserIdAndTestId(userId, test.getId()).stream()
+                .filter(p -> p.getState() == ScaleProgressState.COLLECTING)
+                .collect(Collectors.toMap(ScaleProgress::getScaleId, p -> p, (a, b) -> a));
+
+        Map<UUID, ScaleProgress> progressByScale = new HashMap<>();
+        for (PsychometricScale s : allScales) {
+            if (s.getResultMode() != ResultMode.CONSOLIDATED) {
+                continue;
+            }
+            int required = itemsRequiredByScale.getOrDefault(s.getId(), 0);
+            if (required == 0) {
+                continue; // scale has no scoring-key items — nothing to accrue
+            }
+            ScaleProgress p = existingByScale.get(s.getId());
+            if (p == null) {
+                // Open a new consolidation window; freeze the norm version (D4).
+                p = ScaleProgress.builder()
+                        .userId(userId).scaleId(s.getId()).testId(test.getId())
+                        .windowId(UUID.randomUUID())
+                        .normTableVersionId(normOpt.map(NormTableVersion::getId).orElse(null))
+                        .itemsRequired(required)
+                        .itemsCollected(0)
+                        .state(ScaleProgressState.COLLECTING)
+                        .openedAt(now)
+                        .build();
+            }
+            int answered = answeredThisSessionByScale.getOrDefault(s.getId(), 0);
+            if (answered > 0) {
+                p.setItemsCollected(p.getItemsCollected() + answered);
+            }
+            p = scaleProgressRepository.save(p);
+            progressByScale.put(s.getId(), p);
+        }
+        return progressByScale;
     }
 
     /**
