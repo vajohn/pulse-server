@@ -6,9 +6,11 @@ import com.edge.pulse.data.dto.psychometric.NormEntryRequest;
 import com.edge.pulse.data.dto.psychometric.PsychometricTestAnalyticsDto;
 import com.edge.pulse.data.dto.psychometric.ScoringKeyItemRequest;
 import com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest;
+import com.edge.pulse.data.dto.psychometric.imports.NormScaleParamRequest;
 import com.edge.pulse.data.enums.CompositeBasis;
 import com.edge.pulse.data.enums.CompositeMethod;
 import com.edge.pulse.data.enums.NormStatus;
+import com.edge.pulse.data.enums.NormStrategyType;
 import com.edge.pulse.data.enums.QuestionType;
 import com.edge.pulse.data.enums.ScoringKeyStatus;
 import com.edge.pulse.data.enums.TestStatus;
@@ -16,6 +18,7 @@ import com.edge.pulse.data.models.Form;
 import com.edge.pulse.data.models.Question;
 import com.edge.pulse.data.models.User;
 import com.edge.pulse.data.enums.TestType;
+import com.edge.pulse.data.models.psychometric.NormScaleParam;
 import com.edge.pulse.data.models.psychometric.NormTableVersion;
 import com.edge.pulse.data.models.psychometric.PsychometricScale;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
@@ -27,6 +30,7 @@ import com.edge.pulse.repositories.FormRepository;
 import com.edge.pulse.repositories.QuestionRepository;
 import com.edge.pulse.repositories.UserRepository;
 import com.edge.pulse.repositories.psychometric.NormEntryRepository;
+import com.edge.pulse.repositories.psychometric.NormScaleParamRepository;
 import com.edge.pulse.repositories.psychometric.NormTableVersionRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricAnalyticsMvRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricScaleRepository;
@@ -39,6 +43,7 @@ import com.edge.pulse.services.AuditService;
 import com.edge.pulse.services.SurveyService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -83,6 +88,7 @@ class PsychometricAdminServiceTest {
     @Mock private NormTableVersionRepository normTableVersionRepository;
     @Mock private NormEntryRepository normEntryRepository;
     @Mock private CandidateAnswerRepository candidateAnswerRepository;
+    @Mock private NormScaleParamRepository normScaleParamRepository;
 
     @InjectMocks
     private PsychometricAdminService adminService;
@@ -492,6 +498,45 @@ class PsychometricAdminServiceTest {
                         .isEqualTo(HttpStatus.BAD_REQUEST));
 
         verify(normTableVersionRepository, never()).deprecateValidatedNormsByTestId(any());
+    }
+
+    // ── saveParametricNorms ───────────────────────────────────────────────────
+
+    @Test
+    void saveParametricNorms_createsValidatedParametricTableAndParams() {
+        UUID testId = UUID.randomUUID(), scaleId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        PsychometricTest test = PsychometricTest.builder().id(testId).build();
+        User user = User.builder().id(userId).build();
+        PsychometricScale scale = PsychometricScale.builder().id(scaleId).build();
+
+        when(testRepository.findById(testId)).thenReturn(Optional.of(test));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(normTableVersionRepository.findByTestId(testId)).thenReturn(List.of());
+        when(normTableVersionRepository.save(any())).thenAnswer(inv -> {
+            var n = (NormTableVersion) inv.getArgument(0);
+            return n;
+        });
+        when(scaleRepository.findById(scaleId)).thenReturn(Optional.of(scale));
+        when(normScaleParamRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(auditService.buildDetail(any(), any(), any(), any(), any(), any())).thenReturn("{}");
+
+        var req = new NormScaleParamRequest(scaleId, new BigDecimal("7.92"), new BigDecimal("3.10"),
+                new BigDecimal("10"), new BigDecimal("50"), new BigDecimal("10"), new BigDecimal("120"), 200);
+
+        adminService.saveParametricNorms(testId, List.of(req), userId);
+
+        ArgumentCaptor<NormTableVersion> tv = ArgumentCaptor.forClass(NormTableVersion.class);
+        verify(normTableVersionRepository).save(tv.capture());
+        assertThat(tv.getValue().getNormStrategy()).isEqualTo(NormStrategyType.PARAMETRIC);
+        assertThat(tv.getValue().getStatus()).isEqualTo(NormStatus.VALIDATED);
+
+        ArgumentCaptor<NormScaleParam> p = ArgumentCaptor.forClass(NormScaleParam.class);
+        verify(normScaleParamRepository).save(p.capture());
+        assertThat(p.getValue().getMean()).isEqualByComparingTo("7.92");
+        assertThat(p.getValue().getTClipHi()).isEqualByComparingTo("120");
+        assertThat(p.getValue().getScale()).isEqualTo(scale);
     }
 
     // ── createScale — composite fields persistence ────────────────────────────

@@ -18,10 +18,12 @@ import com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest;
 import com.edge.pulse.data.dto.psychometric.UpdateScaleRequest;
 import com.edge.pulse.data.dto.psychometric.UpsertVisibilityPolicyRequest;
 import com.edge.pulse.data.dto.psychometric.VisibilityPolicyDto;
+import com.edge.pulse.data.dto.psychometric.imports.NormScaleParamRequest;
 import com.edge.pulse.data.enums.CompositeBasis;
 import com.edge.pulse.data.enums.CompositeMethod;
 import com.edge.pulse.data.enums.FormType;
 import com.edge.pulse.data.enums.NormStatus;
+import com.edge.pulse.data.enums.NormStrategyType;
 import com.edge.pulse.data.enums.QuestionType;
 import com.edge.pulse.data.enums.ResultAudience;
 import com.edge.pulse.data.enums.ScoreDirection;
@@ -34,6 +36,7 @@ import com.edge.pulse.data.enums.TestType;
 import com.edge.pulse.data.models.Form;
 import com.edge.pulse.data.models.User;
 import com.edge.pulse.data.models.psychometric.NormEntry;
+import com.edge.pulse.data.models.psychometric.NormScaleParam;
 import com.edge.pulse.data.models.psychometric.NormTableVersion;
 import com.edge.pulse.data.models.psychometric.PsychometricScale;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
@@ -42,6 +45,7 @@ import com.edge.pulse.data.models.psychometric.ScoringKeyItem;
 import com.edge.pulse.data.models.psychometric.ScoringKeyVersion;
 import com.edge.pulse.data.models.psychometric.TestResult;
 import com.edge.pulse.repositories.psychometric.NormEntryRepository;
+import com.edge.pulse.repositories.psychometric.NormScaleParamRepository;
 import com.edge.pulse.repositories.psychometric.NormTableVersionRepository;
 import com.edge.pulse.repositories.psychometric.ResultVisibilityPolicyRepository;
 import com.edge.pulse.repositories.psychometric.ScoringKeyItemRepository;
@@ -101,6 +105,7 @@ public class PsychometricAdminService {
     private final NormTableVersionRepository normTableVersionRepository;
     private final NormEntryRepository normEntryRepository;
     private final CandidateAnswerRepository candidateAnswerRepository;
+    private final NormScaleParamRepository normScaleParamRepository;
 
     // ── Test CRUD ─────────────────────────────────────────────────────────────
 
@@ -748,6 +753,61 @@ public class PsychometricAdminService {
                 auditService.buildDetail("testId", testId, "entryCount", entries.size(),
                         "version", nextVersion), null);
         return result;
+    }
+
+    // ── Parametric Norm Persistence ───────────────────────────────────────────
+
+    /**
+     * Creates a new VALIDATED {@link NormTableVersion} with strategy PARAMETRIC
+     * and persists one {@link NormScaleParam} row per supplied request.
+     *
+     * <p>Atomically deprecates any prior VALIDATED norm table before creating
+     * the new one — the same pattern used by {@link #saveNormTable}.
+     */
+    @Transactional
+    public void saveParametricNorms(UUID testId, List<NormScaleParamRequest> params, UUID userId) {
+        PsychometricTest test = testRepository.findById(testId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Test not found: " + testId));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "User not found: " + userId));
+
+        normTableVersionRepository.deprecateValidatedNormsByTestId(testId);
+
+        int nextVersion = normTableVersionRepository.findByTestId(testId).size() + 1;
+
+        NormTableVersion table = normTableVersionRepository.save(
+                NormTableVersion.builder()
+                        .test(test)
+                        .version(nextVersion)
+                        .label("Imported parametric norms v" + nextVersion)
+                        .normStrategy(NormStrategyType.PARAMETRIC)
+                        .status(NormStatus.VALIDATED)
+                        .publishedBy(user)
+                        .publishedAt(LocalDateTime.now())
+                        .build());
+
+        for (NormScaleParamRequest r : params) {
+            PsychometricScale scale = scaleRepository.findById(r.scaleId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Scale not found: " + r.scaleId()));
+            normScaleParamRepository.save(NormScaleParam.builder()
+                    .normTable(table)
+                    .scale(scale)
+                    .mean(r.mean())
+                    .sd(r.sd())
+                    .tFactor(r.tFactor())
+                    .tOffset(r.tOffset())
+                    .tClipLo(r.tClipLo())
+                    .tClipHi(r.tClipHi())
+                    .sampleSize(r.sampleSize())
+                    .build());
+        }
+
+        auditService.logAction(userId, "PARAMETRIC_NORM_SAVE", "NormTableVersion", table.getId(),
+                auditService.buildDetail("testId", testId, "paramCount", params.size(),
+                        "version", nextVersion), null);
     }
 
     private ScoringKeyItemDto toScoringKeyItemDto(ScoringKeyItem item) {
