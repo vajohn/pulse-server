@@ -19,7 +19,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"form", "createdBy"})
+@ToString(exclude = {"form", "createdBy", "instrument"})
 public class PsychometricTest {
 
     @Id
@@ -60,6 +60,10 @@ public class PsychometricTest {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "instrument_id")
+    private PsychometricInstrument instrument;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
