@@ -7,12 +7,18 @@ import com.edge.pulse.data.models.Form;
 import com.edge.pulse.data.models.User;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.data.models.psychometric.TestApprovalRequest;
+import com.edge.pulse.repositories.CandidateAnswerRepository;
 import com.edge.pulse.repositories.FormRepository;
+import com.edge.pulse.repositories.QuestionRepository;
 import com.edge.pulse.repositories.UserRepository;
 import com.edge.pulse.repositories.psychometric.CompetencyScaleWeightRepository;
+import com.edge.pulse.repositories.psychometric.NormEntryRepository;
 import com.edge.pulse.repositories.psychometric.NormTableVersionRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricScaleRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricTestRepository;
+import com.edge.pulse.repositories.psychometric.ResultVisibilityPolicyRepository;
+import com.edge.pulse.repositories.psychometric.ScoringKeyCorrectAnswerRepository;
+import com.edge.pulse.repositories.psychometric.ScoringKeyItemRepository;
 import com.edge.pulse.repositories.psychometric.ScoringKeyVersionRepository;
 import com.edge.pulse.repositories.psychometric.TestApprovalRequestRepository;
 import com.edge.pulse.services.AuditService;
@@ -40,13 +46,20 @@ class TestApprovalServiceReviewTest {
     @Mock private PsychometricTestRepository testRepository;
     @Mock private UserRepository userRepository;
     @Mock private FormRepository formRepository;
+    @Mock private QuestionRepository questionRepository;
+    @Mock private CandidateAnswerRepository candidateAnswerRepository;
     @Mock private TestApprovalRequestRepository approvalRequestRepository;
     @Mock private ScoringKeyVersionRepository scoringKeyVersionRepository;
+    @Mock private ScoringKeyItemRepository scoringKeyItemRepository;
+    @Mock private ScoringKeyCorrectAnswerRepository scoringKeyCorrectAnswerRepository;
     @Mock private NormTableVersionRepository normTableVersionRepository;
+    @Mock private NormEntryRepository normEntryRepository;
     @Mock private PsychometricScaleRepository scaleRepository;
     @Mock private CompetencyScaleWeightRepository competencyScaleWeightRepository;
+    @Mock private ResultVisibilityPolicyRepository resultVisibilityPolicyRepository;
     @Mock private com.edge.pulse.mappers.psychometric.TestApprovalMapper approvalMapper;
     @Mock private AuditService auditService;
+    @Mock private PsychometricAdminService psychometricAdminService;
 
     @InjectMocks
     private TestApprovalService approvalService;
@@ -204,5 +217,37 @@ class TestApprovalServiceReviewTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
                         .isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    // ── M3: approve with supersedes → prior missing in DB → 404 ─────────────
+
+    @Test
+    void approveMissingPriorThrows404() {
+        PsychometricTest priorProxy = PsychometricTest.builder()
+                .id(UUID.randomUUID())
+                .name("Prior")
+                .testType(TestType.PERSONALITY)
+                .status(TestStatus.ACTIVE)
+                .version(1)
+                .form(Form.builder().id(UUID.randomUUID()).build())
+                .build();
+
+        PsychometricTest test = buildPendingTest();
+        test.setVersion(2);
+        test.setSupersedes(priorProxy);
+
+        TestApprovalRequest request = buildPendingRequest(test);
+        User reviewer = User.builder().id(reviewerId).build();
+
+        when(approvalRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(userRepository.findById(reviewerId)).thenReturn(Optional.of(reviewer));
+        // Simulate the prior being genuinely missing from DB
+        when(testRepository.findById(priorProxy.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> approvalService.review(reviewerId, request.getId(),
+                "APPROVE", "ref-xyz", null))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
     }
 }

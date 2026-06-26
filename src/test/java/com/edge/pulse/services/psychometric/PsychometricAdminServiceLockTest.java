@@ -226,4 +226,111 @@ class PsychometricAdminServiceLockTest {
         var result = adminService.saveScoringKey(test.getId(), List.of(), UUID.randomUUID());
         assertThat(result).isNotNull();
     }
+
+    // ── I5: saveScoringKey on PENDING_APPROVAL → 409 ─────────────────────────
+
+    @Test
+    void pendingApprovalTestRejectsScoringKeyEdit409() {
+        PsychometricTest test = PsychometricTest.builder()
+                .id(UUID.randomUUID()).name("T").testType(TestType.PERSONALITY)
+                .status(TestStatus.PENDING_APPROVAL).version(1)
+                .form(Form.builder().id(UUID.randomUUID()).build()).build();
+
+        when(testRepository.findById(test.getId())).thenReturn(Optional.of(test));
+
+        assertThatThrownBy(() -> adminService.saveScoringKey(test.getId(), List.of(), UUID.randomUUID()))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    // ── I5: saveNormTable on PENDING_APPROVAL → 409 ──────────────────────────
+
+    @Test
+    void pendingApprovalTestRejectsNormTableEdit409() {
+        PsychometricTest test = PsychometricTest.builder()
+                .id(UUID.randomUUID()).name("T").testType(TestType.PERSONALITY)
+                .status(TestStatus.PENDING_APPROVAL).version(1)
+                .form(Form.builder().id(UUID.randomUUID()).build()).build();
+
+        when(testRepository.findById(test.getId())).thenReturn(Optional.of(test));
+
+        assertThatThrownBy(() -> adminService.saveNormTable(test.getId(), List.of(), UUID.randomUUID()))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    // ── I5: createScale on PENDING_APPROVAL → 409 ────────────────────────────
+
+    @Test
+    void pendingApprovalTestRejectsScaleCreate409() {
+        PsychometricTest test = PsychometricTest.builder()
+                .id(UUID.randomUUID()).name("T").testType(TestType.PERSONALITY)
+                .status(TestStatus.PENDING_APPROVAL).version(1)
+                .form(Form.builder().id(UUID.randomUUID()).build()).build();
+
+        when(testRepository.findById(test.getId())).thenReturn(Optional.of(test));
+
+        com.edge.pulse.data.dto.psychometric.CreateScaleRequest req =
+                new com.edge.pulse.data.dto.psychometric.CreateScaleRequest(
+                        "NewScale", null, "SUM", null, 0, null, null, null, false);
+
+        assertThatThrownBy(() -> adminService.createScale(test.getId(), req, UUID.randomUUID()))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    // ── I3: archiveTest on PENDING_APPROVAL → 409 ────────────────────────────
+
+    @Test
+    void archivePendingApprovalTestRejects409() {
+        PsychometricTest test = PsychometricTest.builder()
+                .id(UUID.randomUUID()).name("T").testType(TestType.PERSONALITY)
+                .status(TestStatus.PENDING_APPROVAL).version(1)
+                .form(Form.builder().id(UUID.randomUUID()).build()).build();
+
+        when(testRepository.findById(test.getId())).thenReturn(Optional.of(test));
+
+        assertThatThrownBy(() -> adminService.archiveTest(test.getId(), UUID.randomUUID()))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> {
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(rse.getReason()).containsIgnoringCase("approval request");
+                });
+    }
+
+    // ── I3: archiveTest on ACTIVE → RETIRED (allowed) ────────────────────────
+
+    @Test
+    void archiveActiveTestSucceeds() {
+        PsychometricTest test = activeTest();
+        when(testRepository.findById(test.getId())).thenReturn(Optional.of(test));
+        when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(auditService.buildDetail(any(), any())).thenReturn("{}");
+
+        adminService.archiveTest(test.getId(), UUID.randomUUID());
+
+        assertThat(test.getStatus()).isEqualTo(TestStatus.RETIRED);
+    }
+
+    // ── I3: archiveTest on DRAFT → RETIRED (allowed) ─────────────────────────
+
+    @Test
+    void archiveDraftTestSucceeds() {
+        PsychometricTest test = PsychometricTest.builder()
+                .id(UUID.randomUUID()).name("T").testType(TestType.PERSONALITY)
+                .status(TestStatus.DRAFT).version(1)
+                .form(Form.builder().id(UUID.randomUUID()).build()).build();
+
+        when(testRepository.findById(test.getId())).thenReturn(Optional.of(test));
+        when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(auditService.buildDetail(any(), any())).thenReturn("{}");
+
+        adminService.archiveTest(test.getId(), UUID.randomUUID());
+
+        assertThat(test.getStatus()).isEqualTo(TestStatus.RETIRED);
+    }
 }
