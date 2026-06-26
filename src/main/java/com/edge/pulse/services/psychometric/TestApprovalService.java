@@ -123,6 +123,12 @@ public class TestApprovalService {
                     "Cannot approve your own submission (segregation of duties)");
         }
 
+        // Validate REJECT comment before any DB round-trips so validation error is surfaced early
+        if ("REJECT".equalsIgnoreCase(decision) && (comment == null || comment.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "A comment (reason for rejection) is required");
+        }
+
         User reviewer = userRepository.findById(reviewerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reviewer not found"));
 
@@ -154,10 +160,6 @@ public class TestApprovalService {
                             "requestId", requestId, "version", test.getVersion()), null);
 
         } else if ("REJECT".equalsIgnoreCase(decision)) {
-            if (comment == null || comment.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "A comment (reason for rejection) is required");
-            }
             request.setStatus(TestApprovalStatus.REJECTED);
             request.setReviewComment(comment);
 
