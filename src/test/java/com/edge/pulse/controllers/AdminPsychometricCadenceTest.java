@@ -3,6 +3,7 @@ package com.edge.pulse.controllers;
 import com.edge.pulse.data.dto.psychometric.CadenceConfigDto;
 import com.edge.pulse.data.enums.Cadence;
 import com.edge.pulse.services.psychometric.CadenceAdminService;
+import com.edge.pulse.services.psychometric.InstrumentService;
 import com.edge.pulse.services.psychometric.PsychometricAdminService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ class AdminPsychometricCadenceTest {
     MockMvc mvc;
     PsychometricAdminService adminService = mock(PsychometricAdminService.class);
     CadenceAdminService cadenceAdminService = mock(CadenceAdminService.class);
+    InstrumentService instrumentService = mock(InstrumentService.class);
     final ObjectMapper om = new ObjectMapper();
 
     private UUID testId;
@@ -34,7 +36,7 @@ class AdminPsychometricCadenceTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders
-                .standaloneSetup(new AdminPsychometricController(adminService, cadenceAdminService))
+                .standaloneSetup(new AdminPsychometricController(adminService, cadenceAdminService, instrumentService))
                 .build();
         testId = UUID.randomUUID();
     }

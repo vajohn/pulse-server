@@ -7,6 +7,7 @@ import com.edge.pulse.data.dto.psychometric.*;
 import com.edge.pulse.data.enums.TestResultStatus;
 import com.edge.pulse.data.enums.TestStatus;
 import com.edge.pulse.services.psychometric.CadenceAdminService;
+import com.edge.pulse.services.psychometric.InstrumentService;
 import com.edge.pulse.services.psychometric.PsychometricAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class AdminPsychometricController {
 
     private final PsychometricAdminService adminService;
     private final CadenceAdminService cadenceAdminService;
+    private final InstrumentService instrumentService;
 
     // ── Micro-engagement cadence config (Phase 3, D2) ─────────────────────────────
 
@@ -65,6 +67,12 @@ public class AdminPsychometricController {
     @PreAuthorize("hasAuthority('ASSESS_READ')")
     public ResponseEntity<List<TestTypeCapabilityDto>> listTestTypes() {
         return ResponseEntity.ok(adminService.listTestTypeCapabilities());
+    }
+
+    @GetMapping("/instruments")
+    @PreAuthorize("hasAuthority('ASSESS_READ')")
+    public ResponseEntity<List<InstrumentDto>> listInstruments() {
+        return ResponseEntity.ok(instrumentService.list());
     }
 
     // ── Test CRUD ────────────────────────────────────────────────────────────────
