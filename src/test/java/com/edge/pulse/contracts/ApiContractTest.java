@@ -639,7 +639,7 @@ class ApiContractTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 "Big-Five Inventory", "Personality test", "Answer honestly.",
                 "PERSONALITY", null, "DRAFT", 1,
-                LocalDateTime.of(2026, 3, 1, 9, 0), 20, 3, null, null
+                LocalDateTime.of(2026, 3, 1, 9, 0), 20, 3, null, null, null, null
         );
 
         JsonNode node = mapper.readTree(mapper.writeValueAsString(dto));
@@ -681,7 +681,7 @@ class ApiContractTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 "Big Five", "Personality test", null,
                 "PERSONALITY", null, "ACTIVE", 2,
-                LocalDateTime.of(2026, 3, 1, 9, 0), 30, 5, "Big Five", instrumentId
+                LocalDateTime.of(2026, 3, 1, 9, 0), 30, 5, "Big Five", instrumentId, null, null
         );
 
         JsonNode node = mapper.readTree(mapper.writeValueAsString(dto));
@@ -883,7 +883,7 @@ class ApiContractTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 "Spatial Reasoning", null, null,
                 "COGNITIVE", 1800, "DRAFT", 1,
-                LocalDateTime.of(2026, 3, 1, 9, 0), 10, 2, null, null
+                LocalDateTime.of(2026, 3, 1, 9, 0), 10, 2, null, null, null, null
         );
         JsonNode cogNode = mapper.readTree(mapper.writeValueAsString(cognitive));
         assertThat(cogNode.get("testType").asText())
@@ -897,7 +897,7 @@ class ApiContractTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 "Big-Five", null, null,
                 "PERSONALITY", null, "ACTIVE", 1,
-                LocalDateTime.of(2026, 3, 1, 9, 0), 30, 5, null, null
+                LocalDateTime.of(2026, 3, 1, 9, 0), 30, 5, null, null, null, null
         );
         JsonNode pNode = mapper.readTree(mapper.writeValueAsString(personality));
         assertThat(pNode.get("testType").asText()).isEqualTo("PERSONALITY");
@@ -963,7 +963,7 @@ class ApiContractTest {
                     UUID.randomUUID(), UUID.randomUUID(),
                     "Test", null, null,
                     "COGNITIVE", 900, status, 1,
-                    LocalDateTime.of(2026, 3, 1, 9, 0), 0, 0, null, null
+                    LocalDateTime.of(2026, 3, 1, 9, 0), 0, 0, null, null, null, null
             );
             JsonNode node = mapper.readTree(mapper.writeValueAsString(dto));
             assertThat(node.get("status").asText())

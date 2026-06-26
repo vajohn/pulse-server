@@ -52,7 +52,7 @@ class AssessmentImporterRestrictedTest {
 
     private static PsychometricTestDto testDto(UUID testId) {
         return new PsychometricTestDto(testId, UUID.randomUUID(), "ATP", "desc", null,
-                "PERSONALITY", null, "DRAFT", 1, LocalDateTime.now(), 0, 0, null, null);
+                "PERSONALITY", null, "DRAFT", 1, LocalDateTime.now(), 0, 0, null, null, null, null);
     }
 
     private static QuestionDto scaleQuestionDto(UUID qId, UUID optId) {

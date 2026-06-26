@@ -91,6 +91,8 @@ class PsychometricAdminServiceTest {
     @Mock private CandidateAnswerRepository candidateAnswerRepository;
     @Mock private NormScaleParamRepository normScaleParamRepository;
     @Mock private InstrumentService instrumentService;
+    @Mock private com.edge.pulse.repositories.psychometric.TestApprovalRequestRepository testApprovalRequestRepository;
+    @Mock private com.edge.pulse.mappers.psychometric.TestApprovalMapper testApprovalMapper;
 
     @InjectMocks
     private PsychometricAdminService adminService;
@@ -271,6 +273,8 @@ class PsychometricAdminServiceTest {
         when(scaleRepository.countByTestId(testId)).thenReturn(1);
         when(formRepository.countActiveQuestionsByFormId(any())).thenReturn(2L);
         when(auditService.buildDetail(any(), any())).thenReturn("{}");
+        when(testApprovalRequestRepository.findFirstByTestIdAndStatus(any(), any()))
+                .thenReturn(java.util.Optional.empty());
 
         var result = adminService.activateTest(testId, userId);
 
@@ -295,6 +299,8 @@ class PsychometricAdminServiceTest {
         when(scaleRepository.countByTestId(testId)).thenReturn(1);
         when(formRepository.countActiveQuestionsByFormId(any())).thenReturn(1L);
         when(auditService.buildDetail(any(), any())).thenReturn("{}");
+        when(testApprovalRequestRepository.findFirstByTestIdAndStatus(any(), any()))
+                .thenReturn(java.util.Optional.empty());
 
         // Should not throw — idempotent re-activation is allowed
         var result = adminService.activateTest(testId, UUID.randomUUID());
@@ -629,6 +635,8 @@ class PsychometricAdminServiceTest {
         when(userRepository.findById(actorId)).thenReturn(Optional.of(org.mockito.Mockito.mock(User.class)));
         when(formRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(testApprovalRequestRepository.findFirstByTestIdAndStatus(any(), any()))
+                .thenReturn(java.util.Optional.empty());
         PsychometricInstrument inst = PsychometricInstrument.builder()
                 .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("bigfive").build();
         when(instrumentService.resolveOrCreate("BigFive")).thenReturn(inst);
@@ -656,6 +664,8 @@ class PsychometricAdminServiceTest {
         when(testRepository.findById(testId)).thenReturn(Optional.of(test));
         when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(formRepository.countActiveQuestionsByFormId(any())).thenReturn(0L);
+        when(testApprovalRequestRepository.findFirstByTestIdAndStatus(any(), any()))
+                .thenReturn(java.util.Optional.empty());
         PsychometricInstrument inst = PsychometricInstrument.builder()
                 .id(UUID.randomUUID()).displayName("PTI Plus").canonicalName("ptiplus").build();
         when(instrumentService.resolveOrCreate("PTI Plus")).thenReturn(inst);

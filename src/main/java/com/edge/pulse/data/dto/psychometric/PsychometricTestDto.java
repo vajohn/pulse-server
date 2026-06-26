@@ -19,7 +19,7 @@ public record PsychometricTestDto(
         String testType,
         /** NULL = untimed. */
         Integer timeLimitSecs,
-        /** TestStatus.name() — e.g. "DRAFT", "ACTIVE", "RETIRED". */
+        /** TestStatus.name() — e.g. "DRAFT", "ACTIVE", "RETIRED", "PENDING_APPROVAL". */
         String status,
         int version,
         LocalDateTime createdAt,
@@ -28,5 +28,9 @@ public record PsychometricTestDto(
         /** Instrument display name (e.g. "Big Five"), or null if none. */
         String instrument,
         /** Instrument row id, or null if none. */
-        UUID instrumentId
+        UUID instrumentId,
+        /** Id of the prior ACTIVE test this DRAFT revision supersedes, or null. */
+        UUID supersedesId,
+        /** The open PENDING approval request for this test, or null if none. */
+        TestApprovalRequestDto pendingRequest
 ) {}

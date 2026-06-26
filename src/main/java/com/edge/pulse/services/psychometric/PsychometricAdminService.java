@@ -110,6 +110,8 @@ public class PsychometricAdminService {
     private final CandidateAnswerRepository candidateAnswerRepository;
     private final NormScaleParamRepository normScaleParamRepository;
     private final InstrumentService instrumentService;
+    private final com.edge.pulse.repositories.psychometric.TestApprovalRequestRepository testApprovalRequestRepository;
+    private final com.edge.pulse.mappers.psychometric.TestApprovalMapper testApprovalMapper;
 
     // ── Type catalog ──────────────────────────────────────────────────────────
 
@@ -603,6 +605,12 @@ public class PsychometricAdminService {
 
     private PsychometricTestDto toTestDto(PsychometricTest t, int scaleCount, int questionCount) {
         PsychometricInstrument inst = t.getInstrument();
+        UUID supersedesId = t.getSupersedes() != null ? t.getSupersedes().getId() : null;
+        com.edge.pulse.data.dto.psychometric.TestApprovalRequestDto pendingRequest =
+                testApprovalRequestRepository
+                        .findFirstByTestIdAndStatus(t.getId(), com.edge.pulse.data.enums.TestApprovalStatus.PENDING)
+                        .map(testApprovalMapper::toDto)
+                        .orElse(null);
         return new PsychometricTestDto(
                 t.getId(),
                 t.getForm().getId(),
@@ -617,7 +625,9 @@ public class PsychometricAdminService {
                 questionCount,
                 scaleCount,
                 inst == null ? null : inst.getDisplayName(),
-                inst == null ? null : inst.getId()
+                inst == null ? null : inst.getId(),
+                supersedesId,
+                pendingRequest
         );
     }
 
