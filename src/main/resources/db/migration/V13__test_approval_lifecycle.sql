@@ -1,6 +1,22 @@
 -- Dual-control approval lifecycle for psychometric tests.
 -- TestStatus.PENDING_APPROVAL and PermissionName.ASSESS_APPROVE are enum values,
--- synced into varchar columns / the permissions table on boot — no DDL needed here.
+-- synced into varchar columns / the permissions table on boot.
+
+-- Widen chk_test_status so PENDING_APPROVAL (introduced in this feature branch) is allowed.
+-- The constraint was originally defined in V1 as ('DRAFT','ACTIVE','RETIRED'); any status the
+-- Java TestStatus enum carries must be listed here.
+ALTER TABLE psychometric_test
+    DROP CONSTRAINT IF EXISTS chk_test_status;
+ALTER TABLE psychometric_test
+    ADD CONSTRAINT chk_test_status
+        CHECK (status IN ('DRAFT','PENDING_APPROVAL','ACTIVE','RETIRED'));
+
+-- Add an explicit CHECK on test_approval_request.status to match TestApprovalStatus enum.
+ALTER TABLE test_approval_request
+    DROP CONSTRAINT IF EXISTS chk_approval_status;
+ALTER TABLE test_approval_request
+    ADD CONSTRAINT chk_approval_status
+        CHECK (status IN ('PENDING','APPROVED','REJECTED'));
 
 ALTER TABLE psychometric_test
     ADD COLUMN supersedes_id UUID NULL
