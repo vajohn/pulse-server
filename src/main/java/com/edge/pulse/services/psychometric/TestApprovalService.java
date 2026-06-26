@@ -9,6 +9,10 @@ import com.edge.pulse.data.models.Form;
 import com.edge.pulse.data.models.User;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.data.models.psychometric.TestApprovalRequest;
+import com.edge.pulse.data.dto.psychometric.PsychometricTestDto;
+import com.edge.pulse.data.dto.psychometric.ReviewTestApprovalRequest;
+import com.edge.pulse.data.dto.psychometric.TestApprovalRequestDto;
+import com.edge.pulse.mappers.psychometric.TestApprovalMapper;
 import com.edge.pulse.repositories.FormRepository;
 import com.edge.pulse.repositories.UserRepository;
 import com.edge.pulse.repositories.psychometric.CompetencyScaleWeightRepository;
@@ -19,6 +23,8 @@ import com.edge.pulse.repositories.psychometric.ScoringKeyVersionRepository;
 import com.edge.pulse.repositories.psychometric.TestApprovalRequestRepository;
 import com.edge.pulse.services.AuditService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +54,13 @@ public class TestApprovalService {
     private final NormTableVersionRepository normTableVersionRepository;
     private final PsychometricScaleRepository scaleRepository;
     private final CompetencyScaleWeightRepository competencyScaleWeightRepository;
+    private final TestApprovalMapper approvalMapper;
     private final AuditService auditService;
+
+    // Lazy to break potential Spring circular dependency (PsychometricAdminService <-> TestApprovalService)
+    @Lazy
+    @Autowired
+    private PsychometricAdminService psychometricAdminService;
 
     // ── submit ────────────────────────────────────────────────────────────────
 
@@ -234,11 +246,50 @@ public class TestApprovalService {
         return clone;
     }
 
+    // ── DTO-returning wrappers (controller convenience) ──────────────────────
+
+    /**
+     * Submits a test for approval and returns the updated test DTO.
+     * Called by the controller to avoid an extra service call.
+     */
+    public PsychometricTestDto submitAndGetDto(UUID testId, UUID submitterId) {
+        submit(testId, submitterId);
+        return psychometricAdminService.getTest(testId);
+    }
+
+    /**
+     * Reviews an approval request and returns the approval request DTO.
+     */
+    public TestApprovalRequestDto reviewAndGetDto(UUID reviewerId, UUID requestId,
+                                                   ReviewTestApprovalRequest body) {
+        TestApprovalRequest request = review(reviewerId, requestId,
+                body.decision(), body.approvalReference(), body.comment());
+        return approvalMapper.toDto(request);
+    }
+
+    /**
+     * Revises a test and returns the new clone's test DTO.
+     */
+    public PsychometricTestDto reviseAndGetDto(UUID testId, UUID userId) {
+        PsychometricTest clone = revise(testId, userId);
+        return psychometricAdminService.getTest(clone.getId());
+    }
+
     // ── listByStatus ──────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<TestApprovalRequest> listByStatus(TestApprovalStatus status) {
         return approvalRequestRepository.findByStatusWithDetails(status);
+    }
+
+    /**
+     * Lists approval requests as DTOs (used by the controller directly).
+     */
+    @Transactional(readOnly = true)
+    public List<TestApprovalRequestDto> listDtos(TestApprovalStatus status) {
+        return listByStatus(status).stream()
+                .map(approvalMapper::toDto)
+                .toList();
     }
 
     // ── scoreability gate (private) ──────────────────────────────────────────

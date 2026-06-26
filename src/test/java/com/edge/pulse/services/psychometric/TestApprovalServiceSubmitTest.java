@@ -46,6 +46,7 @@ class TestApprovalServiceSubmitTest {
     @Mock private NormTableVersionRepository normTableVersionRepository;
     @Mock private PsychometricScaleRepository scaleRepository;
     @Mock private CompetencyScaleWeightRepository competencyScaleWeightRepository;
+    @Mock private com.edge.pulse.mappers.psychometric.TestApprovalMapper approvalMapper;
     @Mock private AuditService auditService;
 
     @InjectMocks

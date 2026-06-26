@@ -4,11 +4,14 @@ import com.edge.pulse.data.dto.AddQuestionRequest;
 import com.edge.pulse.data.dto.QuestionDto;
 import com.edge.pulse.data.dto.UpdateQuestionRequest;
 import com.edge.pulse.data.dto.psychometric.*;
+import com.edge.pulse.data.enums.TestApprovalStatus;
 import com.edge.pulse.data.enums.TestResultStatus;
 import com.edge.pulse.data.enums.TestStatus;
+import com.edge.pulse.mappers.psychometric.TestApprovalMapper;
 import com.edge.pulse.services.psychometric.CadenceAdminService;
 import com.edge.pulse.services.psychometric.InstrumentService;
 import com.edge.pulse.services.psychometric.PsychometricAdminService;
+import com.edge.pulse.services.psychometric.TestApprovalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -35,6 +38,8 @@ public class AdminPsychometricController {
     private final PsychometricAdminService adminService;
     private final CadenceAdminService cadenceAdminService;
     private final InstrumentService instrumentService;
+    private final TestApprovalService approvalService;
+    private final TestApprovalMapper approvalMapper;
 
     // ── Micro-engagement cadence config (Phase 3, D2) ─────────────────────────────
 
@@ -111,13 +116,55 @@ public class AdminPsychometricController {
         return ResponseEntity.ok(adminService.updateTest(testId, request, userId));
     }
 
-    @PostMapping("/tests/{testId}/activate")
+    // ── Approval lifecycle (submit → approve/reject → revise) ────────────────
+
+    /**
+     * Submits a DRAFT test for approval: DRAFT → PENDING_APPROVAL.
+     * Requires ASSESS_UPDATE. Returns 422 if the test is not scoreable.
+     */
+    @PostMapping("/tests/{testId}/submit")
     @PreAuthorize("hasAuthority('ASSESS_UPDATE')")
-    public ResponseEntity<PsychometricTestDto> activateTest(
-            @PathVariable UUID testId,
-            Authentication authentication) {
-        UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(adminService.activateTest(testId, userId));
+    public ResponseEntity<PsychometricTestDto> submit(
+            @PathVariable UUID testId, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(approvalService.submitAndGetDto(testId, userId));
+    }
+
+    /**
+     * Lists approval requests filtered by status (defaults to PENDING).
+     * Requires ASSESS_APPROVE.
+     */
+    @GetMapping("/approvals")
+    @PreAuthorize("hasAuthority('ASSESS_APPROVE')")
+    public ResponseEntity<List<TestApprovalRequestDto>> listApprovals(
+            @RequestParam(defaultValue = "PENDING") TestApprovalStatus status) {
+        return ResponseEntity.ok(approvalService.listDtos(status));
+    }
+
+    /**
+     * Reviews a PENDING approval request (APPROVE → ACTIVE; REJECT → DRAFT).
+     * Requires ASSESS_APPROVE. Returns 403 if reviewer == submitter.
+     */
+    @PostMapping("/approvals/{requestId}/review")
+    @PreAuthorize("hasAuthority('ASSESS_APPROVE')")
+    public ResponseEntity<TestApprovalRequestDto> review(
+            @PathVariable UUID requestId,
+            @RequestBody @Valid ReviewTestApprovalRequest body,
+            Authentication auth) {
+        UUID reviewerId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(approvalService.reviewAndGetDto(reviewerId, requestId, body));
+    }
+
+    /**
+     * Clones an ACTIVE test into a new DRAFT version (version + 1, supersedes = prior).
+     * Requires ASSESS_UPDATE. Returns 409 if the test is not ACTIVE.
+     */
+    @PostMapping("/tests/{testId}/revise")
+    @PreAuthorize("hasAuthority('ASSESS_UPDATE')")
+    public ResponseEntity<PsychometricTestDto> revise(
+            @PathVariable UUID testId, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(approvalService.reviseAndGetDto(testId, userId));
     }
 
     @DeleteMapping("/tests/{testId}")

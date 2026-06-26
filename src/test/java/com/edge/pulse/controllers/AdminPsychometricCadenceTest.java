@@ -29,6 +29,10 @@ class AdminPsychometricCadenceTest {
     PsychometricAdminService adminService = mock(PsychometricAdminService.class);
     CadenceAdminService cadenceAdminService = mock(CadenceAdminService.class);
     InstrumentService instrumentService = mock(InstrumentService.class);
+    com.edge.pulse.services.psychometric.TestApprovalService approvalService =
+            mock(com.edge.pulse.services.psychometric.TestApprovalService.class);
+    com.edge.pulse.mappers.psychometric.TestApprovalMapper approvalMapper =
+            mock(com.edge.pulse.mappers.psychometric.TestApprovalMapper.class);
     final ObjectMapper om = new ObjectMapper();
 
     private UUID testId;
@@ -36,7 +40,9 @@ class AdminPsychometricCadenceTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders
-                .standaloneSetup(new AdminPsychometricController(adminService, cadenceAdminService, instrumentService))
+                .standaloneSetup(new AdminPsychometricController(
+                        adminService, cadenceAdminService, instrumentService,
+                        approvalService, approvalMapper))
                 .build();
         testId = UUID.randomUUID();
     }

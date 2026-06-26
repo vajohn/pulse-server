@@ -244,21 +244,6 @@ public class PsychometricAdminService {
     }
 
     @Transactional
-    public PsychometricTestDto activateTest(UUID testId, UUID activatedById) {
-        PsychometricTest test = testRepository.findById(testId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (test.getStatus() == TestStatus.RETIRED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot activate a retired test");
-        }
-        test.setStatus(TestStatus.ACTIVE);
-        testRepository.save(test);
-        auditService.logAction(activatedById, "PSYCHOMETRIC_TEST_ACTIVATED", "PsychometricTest",
-                testId, auditService.buildDetail("status", "ACTIVE"), null);
-        int questionCount = (int) formRepository.countActiveQuestionsByFormId(test.getForm().getId());
-        return toTestDto(test, countScales(testId), questionCount);
-    }
-
-    @Transactional
     public void archiveTest(UUID testId, UUID archivedById) {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));

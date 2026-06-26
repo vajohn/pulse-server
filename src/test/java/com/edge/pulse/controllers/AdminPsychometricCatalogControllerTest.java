@@ -30,7 +30,12 @@ class AdminPsychometricCatalogControllerTest {
         adminService = Mockito.mock(PsychometricAdminService.class);
         CadenceAdminService cadence = Mockito.mock(CadenceAdminService.class);
         instrumentService = Mockito.mock(InstrumentService.class);
-        AdminPsychometricController controller = new AdminPsychometricController(adminService, cadence, instrumentService);
+        com.edge.pulse.services.psychometric.TestApprovalService approvalService =
+                Mockito.mock(com.edge.pulse.services.psychometric.TestApprovalService.class);
+        com.edge.pulse.mappers.psychometric.TestApprovalMapper approvalMapper =
+                Mockito.mock(com.edge.pulse.mappers.psychometric.TestApprovalMapper.class);
+        AdminPsychometricController controller = new AdminPsychometricController(
+                adminService, cadence, instrumentService, approvalService, approvalMapper);
         mockMvc = standaloneSetup(controller).build();
     }
 
