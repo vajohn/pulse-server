@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class InstrumentServiceTest {
@@ -26,13 +27,13 @@ class InstrumentServiceTest {
     @Test
     void resolveOrCreate_linksExistingByCanonical_reusingDisplay() {
         PsychometricInstrument existing = PsychometricInstrument.builder()
-                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("bigfive").build();
+                .id(UUID.randomUUID()).displayName("Big Five").canonicalName("bigfive").build();
         when(repo.findByCanonicalName("bigfive")).thenReturn(Optional.of(existing));
 
         PsychometricInstrument out = service.resolveOrCreate("Big-Five");
 
         assertThat(out).isSameAs(existing);
-        assertThat(out.getDisplayName()).isEqualTo("Big Five (in development)"); // first writer's display wins
+        assertThat(out.getDisplayName()).isEqualTo("Big Five"); // first writer's display wins
         verify(repo, never()).save(any());
     }
 
@@ -40,13 +41,30 @@ class InstrumentServiceTest {
     void resolveOrCreate_linksExistingByCanonical_noSeparatorVariant() {
         // Regression: "bigfive" (no separator) must resolve the same row as "Big Five"
         PsychometricInstrument existing = PsychometricInstrument.builder()
-                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("bigfive").build();
+                .id(UUID.randomUUID()).displayName("Big Five").canonicalName("bigfive").build();
         when(repo.findByCanonicalName("bigfive")).thenReturn(Optional.of(existing));
 
         PsychometricInstrument out = service.resolveOrCreate("bigfive");
 
         assertThat(out).isSameAs(existing);
         verify(repo, never()).save(any());
+    }
+
+    @Test
+    void resolveOrCreate_raceCondition_catchesConstraintViolationAndRereads() {
+        // Simulate: read misses, save throws UNIQUE constraint, re-read returns winner
+        PsychometricInstrument winner = PsychometricInstrument.builder()
+                .id(UUID.randomUUID()).displayName("Big Five").canonicalName("bigfive").build();
+        when(repo.findByCanonicalName("bigfive"))
+                .thenReturn(Optional.empty())   // first read — race window
+                .thenReturn(Optional.of(winner)); // re-read after constraint violation
+        when(repo.save(any(PsychometricInstrument.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key: canonical_name"));
+
+        PsychometricInstrument out = service.resolveOrCreate("Big Five");
+
+        assertThat(out).isSameAs(winner);
+        verify(repo).save(any(PsychometricInstrument.class));
     }
 
     @Test

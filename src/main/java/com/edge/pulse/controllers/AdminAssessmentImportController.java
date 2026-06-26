@@ -55,6 +55,7 @@ public class AdminAssessmentImportController {
             @RequestParam(value = "description", required = false) String description,
             @RequestParam("testType") TestType testType,
             @RequestParam(value = "timeLimitSecs", required = false) Integer timeLimitSecs,
+            @RequestParam(value = "instrument", required = false) String instrument,
             @RequestParam(value = "images", required = false) MultipartFile images,
             Authentication auth) throws Exception {
 
@@ -80,7 +81,7 @@ public class AdminAssessmentImportController {
         ImportResultDto result;
         try {
             result = importer.importPackage(
-                    new ImportPackageRequest(testName, description, testType, timeLimitSecs, null),
+                    new ImportPackageRequest(testName, description, testType, timeLimitSecs, instrument),
                     outcome.pkg(),
                     imageBytes,
                     (UUID) auth.getPrincipal());

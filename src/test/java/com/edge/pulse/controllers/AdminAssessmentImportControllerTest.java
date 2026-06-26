@@ -13,7 +13,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -115,7 +117,39 @@ class AdminAssessmentImportControllerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Importer runtime failure (IllegalArgumentException) -> 422 with errors (I1)
+    // I1 — instrument param is wired through to ImportPackageRequest
+    // -------------------------------------------------------------------------
+
+    @Test
+    void import_withInstrumentParam_passesInstrumentToImporter() throws Exception {
+        when(importer.importPackage(any(), any(), any(), any()))
+                .thenReturn(new ImportResultDto(true, UUID.randomUUID(), 1, 1, 1, 1, List.of()));
+
+        var q = new MockMultipartFile("questions", "questions.csv", "text/csv",
+                VALID_QUESTIONS.getBytes());
+        var k = new MockMultipartFile("answerKey", "answer_key.csv", "text/csv",
+                VALID_ANSWER_KEY.getBytes());
+        var s = new MockMultipartFile("scoringSheet", "scoring_sheet.csv", "text/csv",
+                VALID_SCORING_SHEET.getBytes());
+
+        mvc.perform(multipart("/api/admin/psychometric/import-package")
+                        .file(q).file(k).file(s)
+                        .param("testName", "ATP")
+                        .param("testType", "PERSONALITY")
+                        .param("instrument", "Adaptive Traits Profiler")
+                        .principal(new UsernamePasswordAuthenticationToken(
+                                UUID.randomUUID(), null, List.of())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Verify the instrument value reached the importer via ImportPackageRequest
+        verify(importer).importPackage(
+                argThat(req -> "Adaptive Traits Profiler".equals(req.instrument())),
+                any(), any(), any());
+    }
+
+    // -------------------------------------------------------------------------
+    // Importer runtime failure (IllegalArgumentException) -> 422 with errors
     // -------------------------------------------------------------------------
 
     @Test

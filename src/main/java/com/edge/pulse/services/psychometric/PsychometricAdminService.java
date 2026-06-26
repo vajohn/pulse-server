@@ -474,8 +474,8 @@ public class PsychometricAdminService {
         if (caps.allowedQuestionTypes.isEmpty()) {
             // Derived types (e.g. COMPETENCY) have no items of their own.
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Competency scores are derived from other tests' scales — a "
-                    + test.getTestType() + " test has no items of its own.");
+                    "Competency scores are derived from other tests' scales — "
+                    + "a competency test has no items of its own.");
         }
         if (!caps.allowedQuestionTypes.contains(req.questionType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

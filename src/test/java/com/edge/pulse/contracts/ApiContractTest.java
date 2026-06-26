@@ -663,6 +663,35 @@ class ApiContractTest {
         // TestStatus uses DRAFT / ACTIVE / RETIRED (not PUBLISHED/ARCHIVED)
         assertThat(node.get("questionCount").asInt()).isEqualTo(20);
         assertThat(node.get("scaleCount").asInt()).isEqualTo(3);
+        // instrument fields nullable — must be present as null (not absent) for a no-instrument test
+        assertThat(node.has("instrument"))
+                .as("'instrument' must be present (Flutter reads it as String?)")
+                .isTrue();
+        assertThat(node.get("instrument").isNull()).isTrue();
+        assertThat(node.has("instrumentId"))
+                .as("'instrumentId' must be present (Flutter reads it as String?)")
+                .isTrue();
+        assertThat(node.get("instrumentId").isNull()).isTrue();
+    }
+
+    @Test
+    void psychometricTestDto_instrumentFields_populated_when_instrument_present() throws Exception {
+        UUID instrumentId = UUID.fromString("cc000000-0000-0000-0000-000000000001");
+        PsychometricTestDto dto = new PsychometricTestDto(
+                UUID.randomUUID(), UUID.randomUUID(),
+                "Big Five", "Personality test", null,
+                "PERSONALITY", null, "ACTIVE", 2,
+                LocalDateTime.of(2026, 3, 1, 9, 0), 30, 5, "Big Five", instrumentId
+        );
+
+        JsonNode node = mapper.readTree(mapper.writeValueAsString(dto));
+
+        // Both instrument fields must be populated when an instrument is linked
+        assertThat(node.has("instrument")).isTrue();
+        assertThat(node.get("instrument").asText()).isEqualTo("Big Five");
+        assertThat(node.has("instrumentId")).isTrue();
+        assertThat(node.get("instrumentId").asText())
+                .isEqualTo("cc000000-0000-0000-0000-000000000001");
     }
 
     @Test

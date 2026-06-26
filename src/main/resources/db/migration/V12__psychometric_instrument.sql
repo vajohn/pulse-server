@@ -18,20 +18,22 @@ ALTER TABLE psychometric_test
 
 CREATE INDEX idx_psychometric_test_instrument ON psychometric_test (instrument_id);
 
--- Idempotent seed of the known in-scope instruments (canonical computed to match
--- InstrumentNormalizer: lowercase then strip ALL non-alphanumeric characters.
--- Parenthetical suffixes are excluded from the canonical so a user typing the base
--- name (without acronym) resolves the same row — e.g. "Big Five" → 'bigfive'.
+-- Idempotent seed of the known in-scope instruments.
+-- INVARIANT: canonical_name = InstrumentNormalizer.canonical(display_name)
+--            i.e. display_name lowercased, all non-alphanumeric chars stripped.
+-- Display names carry NO parenthetical qualifiers (version codes, form suffixes,
+-- "in development" etc.) — the instrument's identity is its name alone.
+-- Example: display "Big Five" → canonical 'bigfive' (not 'bigfivein development').
 -- ON CONFLICT (canonical_name) DO NOTHING keeps re-runs / repeated boots safe.
 INSERT INTO psychometric_instrument (display_name, canonical_name) VALUES
-    ('PTI Plus',                           'ptiplus'),
-    ('Adaptive Traits Profiler (ATP)',      'adaptivetraitsprofiler'),
-    ('Vocational Interests Profiler (VIP)', 'vocationalinterestsprofiler'),
-    ('Logical Reasoning (CA.b)',            'logicalreasoning'),
-    ('Verbal Reasoning (CA.a)',             'verbalreasoning'),
-    ('Numerical Reasoning (CA.a)',          'numericalreasoning'),
-    ('Attention to Detail (CA.a)',          'attentiontodetail'),
-    ('English Reading Assessment',          'englishreadingassessment'),
-    ('English Listening Assessment',        'englishlisteningassessment'),
-    ('Big Five (in development)',           'bigfive')
+    ('PTI Plus',                     'ptiplus'),
+    ('Adaptive Traits Profiler',     'adaptivetraitsprofiler'),
+    ('Vocational Interests Profiler','vocationalinterestsprofiler'),
+    ('Logical Reasoning',            'logicalreasoning'),
+    ('Verbal Reasoning',             'verbalreasoning'),
+    ('Numerical Reasoning',          'numericalreasoning'),
+    ('Attention to Detail',          'attentiontodetail'),
+    ('English Reading Assessment',   'englishreadingassessment'),
+    ('English Listening Assessment', 'englishlisteningassessment'),
+    ('Big Five',                     'bigfive')
 ON CONFLICT (canonical_name) DO NOTHING;

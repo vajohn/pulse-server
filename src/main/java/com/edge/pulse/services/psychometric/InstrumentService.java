@@ -5,6 +5,7 @@ import com.edge.pulse.data.models.psychometric.PsychometricInstrument;
 import com.edge.pulse.repositories.psychometric.PsychometricInstrumentRepository;
 import com.edge.pulse.util.InstrumentNormalizer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,10 @@ public class InstrumentService {
      * one if no row shares its canonical form. Returns {@code null} for null/blank/separator-only
      * input (the test simply has no instrument). When an existing row matches, the existing display
      * name is preserved (first writer wins) so labels stay consistent.
+     *
+     * <p>Race-safe: if a concurrent writer inserts the same canonical between our read and our
+     * save, the UNIQUE constraint fires a {@link DataIntegrityViolationException}. We catch that
+     * and re-read the now-existing row rather than propagating a 500 (BUG-002/003 pattern).
      */
     @Transactional
     public PsychometricInstrument resolveOrCreate(String displayString) {
@@ -32,10 +37,18 @@ public class InstrumentService {
             return null;
         }
         return repository.findByCanonicalName(canonical)
-                .orElseGet(() -> repository.save(PsychometricInstrument.builder()
-                        .displayName(displayString.trim())
-                        .canonicalName(canonical)
-                        .build()));
+                .orElseGet(() -> {
+                    try {
+                        return repository.save(PsychometricInstrument.builder()
+                                .displayName(displayString.trim())
+                                .canonicalName(canonical)
+                                .build());
+                    } catch (DataIntegrityViolationException ex) {
+                        // Concurrent insert won the race — re-read the winner's row.
+                        return repository.findByCanonicalName(canonical)
+                                .orElseThrow(() -> ex);
+                    }
+                });
     }
 
     @Transactional(readOnly = true)
