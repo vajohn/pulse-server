@@ -249,6 +249,11 @@ public class PsychometricAdminService {
     public void archiveTest(UUID testId, UUID archivedById) {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        // I3: reject archive when an open approval request is in flight — reject the request first.
+        if (test.getStatus() == TestStatus.PENDING_APPROVAL) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Reject the open approval request before archiving this test");
+        }
         test.setStatus(TestStatus.RETIRED);
         testRepository.save(test);
 
@@ -584,14 +589,16 @@ public class PsychometricAdminService {
      * </ul>
      */
     /**
-     * Throws 409 CONFLICT if the test is ACTIVE, preventing scoring-affecting edits.
+     * Throws 409 CONFLICT if the test is ACTIVE or PENDING_APPROVAL, preventing
+     * scoring-affecting edits while the test is live or under review.
      * Name, description, and instructions are exempt — they don't affect scoring.
      * To change scoring-affecting fields on an ACTIVE test, use {@code revise()}.
+     * To change them on a PENDING_APPROVAL test, reject the approval request first.
      */
     private void assertEditableScoring(PsychometricTest test) {
-        if (test.getStatus() == TestStatus.ACTIVE) {
+        if (test.getStatus() == TestStatus.ACTIVE || test.getStatus() == TestStatus.PENDING_APPROVAL) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Test is ACTIVE — use revise() to change scoring-affecting fields");
+                    "Test is " + test.getStatus() + " — scoring-affecting edits are locked");
         }
     }
 

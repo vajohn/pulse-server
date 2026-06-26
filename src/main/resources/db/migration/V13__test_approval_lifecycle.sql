@@ -11,7 +11,7 @@ CREATE TABLE test_approval_request (
     test_id             UUID NOT NULL REFERENCES psychometric_test (id),
     test_version        INT  NOT NULL,
     submitted_by        UUID NOT NULL REFERENCES users (id),
-    submitted_at        TIMESTAMP NOT NULL,
+    submitted_at        TIMESTAMP NOT NULL DEFAULT now(),
     status              VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     reviewed_by         UUID NULL REFERENCES users (id),
     reviewed_at         TIMESTAMP NULL,
