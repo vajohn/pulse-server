@@ -60,6 +60,7 @@ public enum PermissionName {
     ASSESS_KEY_MANAGE("Upload, approve, or reject scoring keys and norm tables"),
     ASSESS_RESULT_READ("View candidate test result details and score profiles"),
     ASSESS_COMPETENCY_MANAGE("Manage competency frameworks and scale weights"),
+    ASSESS_APPROVE("Approve psychometric tests for release"),
     ASSESS_ALL("All assessment management permissions"),
 
     // ── REPORT — Analytics & Reporting ───────────────────────────────────────

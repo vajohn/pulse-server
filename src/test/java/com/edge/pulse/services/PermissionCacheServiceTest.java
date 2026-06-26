@@ -287,4 +287,22 @@ class PermissionCacheServiceTest {
 
         verify(redisTemplate, never()).delete(anyCollection());
     }
+
+    // ── ASSESS_ALL expansion (dual-control permission) ───────────────────────
+
+    @Test
+    void assessAllExpansionIncludesApprove() {
+        when(setOps.members(CACHE_KEY)).thenReturn(null);
+        when(permissionRepository.findPermissionNamesByRoleName(ROLE))
+                .thenReturn(Set.of("ASSESS_ALL"));
+
+        Set<String> result = service.getPermissionsForRoles(List.of(ROLE));
+
+        assertThat(result).contains("ASSESS_APPROVE");
+        // Regression: every pre-existing ASSESS_* still present.
+        assertThat(result).containsAll(List.of(
+                "ASSESS_READ", "ASSESS_CREATE", "ASSESS_UPDATE", "ASSESS_DELETE",
+                "ASSESS_ASSIGN", "ASSESS_KEY_MANAGE", "ASSESS_RESULT_READ",
+                "ASSESS_COMPETENCY_MANAGE"));
+    }
 }
