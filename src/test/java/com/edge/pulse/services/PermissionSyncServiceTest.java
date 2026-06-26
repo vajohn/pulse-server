@@ -165,8 +165,8 @@ class PermissionSyncServiceTest {
     }
 
     @Test
-    void syncPermissions_covers58Permissions() {
-        // 55 original + SCOPE_ALL + AI_ALL + SYS_ALL = 58
-        assertThat(PermissionName.values()).hasSize(58);
+    void syncPermissions_covers59Permissions() {
+        // 55 original + SCOPE_ALL + AI_ALL + SYS_ALL + ASSESS_APPROVE = 59
+        assertThat(PermissionName.values()).hasSize(59);
     }
 }
