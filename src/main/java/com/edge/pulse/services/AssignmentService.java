@@ -7,6 +7,7 @@ import com.edge.pulse.data.dto.MyAssignmentDto;
 import com.edge.pulse.data.dto.UpdateFormAssignmentRequest;
 import com.edge.pulse.data.enums.AssignmentStatus;
 import com.edge.pulse.data.enums.FormType;
+import com.edge.pulse.data.enums.TestStatus;
 import com.edge.pulse.data.models.*;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.mappers.AssignmentMapper;
@@ -68,6 +69,18 @@ public class AssignmentService {
         if (assignableCount == 0) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Cannot assign a form with no content");
+        }
+
+        // For PSYCHOMETRIC forms, the underlying test must be ACTIVE (approved).
+        // DRAFT and PENDING_APPROVAL tests may not be assigned to employees.
+        if (form.getFormType() == FormType.PSYCHOMETRIC) {
+            psychometricTestRepository.findByFormId(request.formId())
+                    .ifPresent(test -> {
+                        if (test.getStatus() != TestStatus.ACTIVE) {
+                            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                    "Only an approved (ACTIVE) test can be assigned");
+                        }
+                    });
         }
 
         User assignedBy = userRepository.findById(assignedById)

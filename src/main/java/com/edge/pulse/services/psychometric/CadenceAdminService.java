@@ -2,6 +2,7 @@ package com.edge.pulse.services.psychometric;
 
 import com.edge.pulse.data.dto.psychometric.CadenceConfigDto;
 import com.edge.pulse.data.dto.psychometric.CadenceConfigRequest;
+import com.edge.pulse.data.enums.TestStatus;
 import com.edge.pulse.data.models.OrganizationalUnit;
 import com.edge.pulse.data.models.User;
 import com.edge.pulse.data.models.psychometric.AssessmentCadence;
@@ -44,6 +45,11 @@ public class CadenceAdminService {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Test not found: " + testId));
+
+        if (test.getStatus() != TestStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only an approved (ACTIVE) test can be assigned");
+        }
 
         OrganizationalUnit orgUnit = null;
         if (req.orgUnitId() != null) {

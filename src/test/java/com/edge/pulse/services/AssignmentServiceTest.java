@@ -2,10 +2,13 @@ package com.edge.pulse.services;
 
 import com.edge.pulse.configs.CacheTtlProperties;
 import com.edge.pulse.data.dto.CreateAssignmentRequest;
+import com.edge.pulse.data.enums.FormType;
+import com.edge.pulse.data.enums.TestStatus;
 import com.edge.pulse.data.models.Form;
 import com.edge.pulse.data.models.FormAssignment;
 import com.edge.pulse.data.models.OrganizationalUnit;
 import com.edge.pulse.data.models.User;
+import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.mappers.AssignmentMapper;
 import com.edge.pulse.repositories.*;
 import com.edge.pulse.repositories.psychometric.PsychometricTestRepository;
@@ -155,5 +158,57 @@ class AssignmentServiceTest {
         assertThatThrownBy(() -> service.createAssignment(request, CALLER_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must target");
+    }
+
+    // -----------------------------------------------------------------------
+    // Task 12 — ACTIVE gate for psychometric form assignments
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createAssignment_throwsConflict_whenPsychometricFormTargetsDraftTest() {
+        Form form = Form.builder().id(FORM_ID).formType(FormType.PSYCHOMETRIC).title("Draft psych form").build();
+        PsychometricTest draftTest = PsychometricTest.builder()
+                .id(UUID.randomUUID()).status(TestStatus.DRAFT).build();
+
+        when(formRepository.findById(FORM_ID)).thenReturn(Optional.of(form));
+        when(psychometricTestRepository.countScalesByFormId(FORM_ID)).thenReturn(3L);
+        when(psychometricTestRepository.findByFormId(FORM_ID)).thenReturn(Optional.of(draftTest));
+
+        CreateAssignmentRequest request = new CreateAssignmentRequest(
+                FORM_ID, ORG_ID, null, null, null, null, true, true, false);
+
+        assertThatThrownBy(() -> service.createAssignment(request, CALLER_ID))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    org.junit.jupiter.api.Assertions.assertEquals(
+                            org.springframework.http.HttpStatus.CONFLICT, rse.getStatusCode());
+                    org.junit.jupiter.api.Assertions.assertTrue(
+                            rse.getReason() != null &&
+                            rse.getReason().toLowerCase().contains("active"),
+                            "Error message must mention ACTIVE");
+                });
+    }
+
+    @Test
+    void createAssignment_throwsConflict_whenPsychometricFormTargetsPendingApprovalTest() {
+        Form form = Form.builder().id(FORM_ID).formType(FormType.PSYCHOMETRIC).title("Pending psych form").build();
+        PsychometricTest pendingTest = PsychometricTest.builder()
+                .id(UUID.randomUUID()).status(TestStatus.PENDING_APPROVAL).build();
+
+        when(formRepository.findById(FORM_ID)).thenReturn(Optional.of(form));
+        when(psychometricTestRepository.countScalesByFormId(FORM_ID)).thenReturn(3L);
+        when(psychometricTestRepository.findByFormId(FORM_ID)).thenReturn(Optional.of(pendingTest));
+
+        CreateAssignmentRequest request = new CreateAssignmentRequest(
+                FORM_ID, ORG_ID, null, null, null, null, true, true, false);
+
+        assertThatThrownBy(() -> service.createAssignment(request, CALLER_ID))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    org.junit.jupiter.api.Assertions.assertEquals(
+                            org.springframework.http.HttpStatus.CONFLICT, rse.getStatusCode());
+                });
     }
 }
