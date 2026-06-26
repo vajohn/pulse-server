@@ -572,4 +572,50 @@ class PsychometricAdminServiceTest {
         assertThat(dto.compositeBasis()).isEqualTo(CompositeBasis.TSCORE);
         assertThat(dto.compositeRoundingScale()).isEqualTo(0);
     }
+
+    // ── addQuestion — COMPETENCY type guard ───────────────────────────────────
+
+    @Test
+    void addQuestion_competencyTest_rejectsWithUnprocessableEntity() {
+        UUID testId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Form form = Form.builder().build();
+        PsychometricTest competency = PsychometricTest.builder()
+                .form(form).name("Leadership").testType(com.edge.pulse.data.enums.TestType.COMPETENCY)
+                .status(TestStatus.DRAFT).version(1).build();
+        when(testRepository.findByIdWithForm(testId)).thenReturn(java.util.Optional.of(competency));
+
+        // COMPETENCY: allowedQuestionTypes is empty — the guard throws before reading questionType(),
+        // so we do not stub it (strict Mockito would raise UnnecessaryStubbingException otherwise).
+        com.edge.pulse.data.dto.AddQuestionRequest req =
+                org.mockito.Mockito.mock(com.edge.pulse.data.dto.AddQuestionRequest.class);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> adminService.addQuestion(testId, req, actorId));
+        assertThat(ex.getStatusCode().value()).isEqualTo(422);
+        assertThat(ex.getReason()).contains("derived");
+        org.mockito.Mockito.verifyNoInteractions(surveyService);
+    }
+
+    @Test
+    void addQuestion_personalityWrongType_stillReturnsBadRequest() {
+        UUID testId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        PsychometricTest personality = PsychometricTest.builder()
+                .form(Form.builder().build()).name("PTI").testType(com.edge.pulse.data.enums.TestType.PERSONALITY)
+                .status(TestStatus.DRAFT).version(1).build();
+        when(testRepository.findByIdWithForm(testId)).thenReturn(java.util.Optional.of(personality));
+
+        com.edge.pulse.data.dto.AddQuestionRequest req =
+                org.mockito.Mockito.mock(com.edge.pulse.data.dto.AddQuestionRequest.class);
+        when(req.questionType()).thenReturn(com.edge.pulse.data.enums.QuestionType.CHOICE_SINGLE); // not allowed for PERSONALITY
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> adminService.addQuestion(testId, req, actorId));
+        assertThat(ex.getStatusCode().value()).isEqualTo(400);
+    }
 }

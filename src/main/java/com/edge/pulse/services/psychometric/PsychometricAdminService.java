@@ -435,8 +435,14 @@ public class PsychometricAdminService {
         PsychometricTest test = testRepository.findByIdWithForm(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        // Validate question type against test type capabilities
+        // Validate question type against test type capabilities.
         TestTypeCapabilities caps = TestTypeCapabilities.of(test.getTestType());
+        if (caps.allowedQuestionTypes.isEmpty()) {
+            // Derived types (e.g. COMPETENCY) have no items of their own.
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Competency scores are derived from other tests' scales — a "
+                    + test.getTestType() + " test has no items of its own.");
+        }
         if (!caps.allowedQuestionTypes.contains(req.questionType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Question type " + req.questionType() + " is not allowed for "
