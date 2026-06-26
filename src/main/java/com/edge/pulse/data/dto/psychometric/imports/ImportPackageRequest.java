@@ -7,5 +7,6 @@ public record ImportPackageRequest(
         String testName,
         String description,
         com.edge.pulse.data.enums.TestType testType,
-        Integer timeLimitSecs
+        Integer timeLimitSecs,
+        String instrument
 ) {}

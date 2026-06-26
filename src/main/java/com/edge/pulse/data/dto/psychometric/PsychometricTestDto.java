@@ -24,5 +24,9 @@ public record PsychometricTestDto(
         int version,
         LocalDateTime createdAt,
         int questionCount,
-        int scaleCount
+        int scaleCount,
+        /** Instrument display name (e.g. "Big Five"), or null if none. */
+        String instrument,
+        /** Instrument row id, or null if none. */
+        UUID instrumentId
 ) {}

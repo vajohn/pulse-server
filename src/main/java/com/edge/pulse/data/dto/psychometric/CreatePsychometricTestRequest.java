@@ -16,5 +16,7 @@ public record CreatePsychometricTestRequest(
         String instructions,
         @NotNull TestType testType,
         /** NULL = untimed personality test. Non-null = cognitive test with enforced deadline. */
-        Integer timeLimitSecs
+        Integer timeLimitSecs,
+        /** Optional instrument display name (resolve-or-create, dedup by canonical). */
+        String instrument
 ) {}

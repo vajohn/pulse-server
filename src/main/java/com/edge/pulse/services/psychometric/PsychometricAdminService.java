@@ -40,6 +40,7 @@ import com.edge.pulse.data.models.psychometric.NormEntry;
 import com.edge.pulse.data.models.psychometric.NormScaleParam;
 import com.edge.pulse.data.models.psychometric.NormTableVersion;
 import com.edge.pulse.data.models.psychometric.PsychometricScale;
+import com.edge.pulse.data.models.psychometric.PsychometricInstrument;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.data.models.psychometric.ResultVisibilityPolicy;
 import com.edge.pulse.data.models.psychometric.ScoringKeyItem;
@@ -108,6 +109,7 @@ public class PsychometricAdminService {
     private final NormEntryRepository normEntryRepository;
     private final CandidateAnswerRepository candidateAnswerRepository;
     private final NormScaleParamRepository normScaleParamRepository;
+    private final InstrumentService instrumentService;
 
     // ── Type catalog ──────────────────────────────────────────────────────────
 
@@ -193,6 +195,8 @@ public class PsychometricAdminService {
         User creator = userRepository.findById(createdById)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN));
 
+        PsychometricInstrument instrument = instrumentService.resolveOrCreate(req.instrument());
+
         PsychometricTest test = PsychometricTest.builder()
                 .form(form)
                 .name(req.name())
@@ -201,6 +205,7 @@ public class PsychometricAdminService {
                 .testType(req.testType())
                 .timeLimitSecs(req.timeLimitSecs())
                 .createdBy(creator)
+                .instrument(instrument)
                 .status(TestStatus.DRAFT)
                 .version(1)
                 .build();
@@ -223,6 +228,9 @@ public class PsychometricAdminService {
         if (req.timeLimitSecs() != null) {
             validateTimeLimitForType(test.getTestType(), req.timeLimitSecs());
             test.setTimeLimitSecs(req.timeLimitSecs());
+        }
+        if (req.instrument() != null) {
+            test.setInstrument(instrumentService.resolveOrCreate(req.instrument()));
         }
 
         testRepository.save(test);
@@ -594,6 +602,7 @@ public class PsychometricAdminService {
     }
 
     private PsychometricTestDto toTestDto(PsychometricTest t, int scaleCount, int questionCount) {
+        PsychometricInstrument inst = t.getInstrument();
         return new PsychometricTestDto(
                 t.getId(),
                 t.getForm().getId(),
@@ -606,7 +615,9 @@ public class PsychometricAdminService {
                 t.getVersion(),
                 t.getCreatedAt(),
                 questionCount,
-                scaleCount
+                scaleCount,
+                inst == null ? null : inst.getDisplayName(),
+                inst == null ? null : inst.getId()
         );
     }
 

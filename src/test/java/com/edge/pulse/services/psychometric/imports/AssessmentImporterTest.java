@@ -57,7 +57,7 @@ class AssessmentImporterTest {
 
     private static PsychometricTestDto testDto(UUID testId) {
         return new PsychometricTestDto(testId, UUID.randomUUID(), "ATP", "desc", null,
-                "PERSONALITY", null, "DRAFT", 1, LocalDateTime.now(), 0, 0);
+                "PERSONALITY", null, "DRAFT", 1, LocalDateTime.now(), 0, 0, null, null);
     }
 
     private static QuestionDto questionDto(UUID qId, UUID optId1, UUID optId2) {
@@ -114,7 +114,7 @@ class AssessmentImporterTest {
                 List.of());
 
         ImportResultDto res = importer.importPackage(
-                new ImportPackageRequest("ATP", "desc", TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+                new ImportPackageRequest("ATP", "desc", TestType.PERSONALITY, null, null), pkg, UUID.randomUUID());
 
         assertThat(res.success()).isTrue();
         assertThat(res.testId()).isEqualTo(testId);
@@ -159,7 +159,7 @@ class AssessmentImporterTest {
                 List.of(new AnswerKeyEntry("Q1", 2)));
 
         importer.importPackage(
-                new ImportPackageRequest("CA", "desc", TestType.COGNITIVE, 600), pkg, UUID.randomUUID());
+                new ImportPackageRequest("CA", "desc", TestType.COGNITIVE, 600, null), pkg, UUID.randomUUID());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ScoringKeyItemRequest>> keyCap = ArgumentCaptor.forClass(List.class);
@@ -195,7 +195,7 @@ class AssessmentImporterTest {
                 List.of());
 
         assertThatThrownBy(() -> importer.importPackage(
-                new ImportPackageRequest("X", null, TestType.PERSONALITY, null), pkg, UUID.randomUUID()))
+                new ImportPackageRequest("X", null, TestType.PERSONALITY, null, null), pkg, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Conflicting question types");
     }
@@ -233,7 +233,7 @@ class AssessmentImporterTest {
 
         // Should not throw
         ImportResultDto res = importer.importPackage(
-                new ImportPackageRequest("VIP", null, TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+                new ImportPackageRequest("VIP", null, TestType.PERSONALITY, null, null), pkg, UUID.randomUUID());
         assertThat(res.success()).isTrue();
         assertThat(res.items()).isEqualTo(2);
     }
@@ -264,7 +264,7 @@ class AssessmentImporterTest {
                 List.of());
 
         ImportResultDto res = importer.importPackage(
-                new ImportPackageRequest("BFI", "desc", TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+                new ImportPackageRequest("BFI", "desc", TestType.PERSONALITY, null, null), pkg, UUID.randomUUID());
         assertThat(res.success()).isTrue();
 
         ArgumentCaptor<AddQuestionRequest> qCap = ArgumentCaptor.forClass(AddQuestionRequest.class);
@@ -314,7 +314,7 @@ class AssessmentImporterTest {
                 List.of());
 
         ImportResultDto res = importer.importPackage(
-                new ImportPackageRequest("PTI", "desc", TestType.PERSONALITY, null), pkg, UUID.randomUUID());
+                new ImportPackageRequest("PTI", "desc", TestType.PERSONALITY, null, null), pkg, UUID.randomUUID());
         assertThat(res.success()).isTrue();
         assertThat(res.questions()).isEqualTo(2);
 
@@ -347,7 +347,7 @@ class AssessmentImporterTest {
                 List.of());
 
         assertThatThrownBy(() -> importer.importPackage(
-                new ImportPackageRequest("X", null, TestType.PERSONALITY, null), pkg, UUID.randomUUID()))
+                new ImportPackageRequest("X", null, TestType.PERSONALITY, null, null), pkg, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unknown scale");
 
@@ -384,7 +384,7 @@ class AssessmentImporterTest {
         Map<String, byte[]> images = Map.of("Q1.png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
 
         importer.importPackage(
-                new ImportPackageRequest("ATD", "desc", TestType.COGNITIVE, 600), pkg, images, UUID.randomUUID());
+                new ImportPackageRequest("ATD", "desc", TestType.COGNITIVE, 600, null), pkg, images, UUID.randomUUID());
 
         ArgumentCaptor<AddQuestionRequest> qCap = ArgumentCaptor.forClass(AddQuestionRequest.class);
         verify(admin).addQuestion(eq(testId), qCap.capture(), any());

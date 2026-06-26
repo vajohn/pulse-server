@@ -24,6 +24,7 @@ import com.edge.pulse.data.models.psychometric.PsychometricScale;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.data.models.psychometric.ScoringKeyItem;
 import com.edge.pulse.data.models.psychometric.ScoringKeyVersion;
+import com.edge.pulse.data.models.psychometric.PsychometricInstrument;
 import com.edge.pulse.mappers.FormMapper;
 import com.edge.pulse.repositories.CandidateAnswerRepository;
 import com.edge.pulse.repositories.FormRepository;
@@ -89,6 +90,7 @@ class PsychometricAdminServiceTest {
     @Mock private NormEntryRepository normEntryRepository;
     @Mock private CandidateAnswerRepository candidateAnswerRepository;
     @Mock private NormScaleParamRepository normScaleParamRepository;
+    @Mock private InstrumentService instrumentService;
 
     @InjectMocks
     private PsychometricAdminService adminService;
@@ -219,7 +221,7 @@ class PsychometricAdminServiceTest {
     void createTest_cognitive_requiresPositiveTimeLimitSecs() {
         var req = new CreatePsychometricTestRequest(
                 "Spatial IQ", null, null,
-                TestType.COGNITIVE, null  // missing time limit
+                TestType.COGNITIVE, null, null  // missing time limit
         );
         assertThatThrownBy(() -> adminService.createTest(req, UUID.randomUUID()))
                 .isInstanceOf(ResponseStatusException.class)
@@ -231,7 +233,7 @@ class PsychometricAdminServiceTest {
     void createTest_cognitive_rejectsZeroTimeLimitSecs() {
         var req = new CreatePsychometricTestRequest(
                 "Spatial IQ", null, null,
-                TestType.COGNITIVE, 0  // zero is not positive
+                TestType.COGNITIVE, 0, null  // zero is not positive
         );
         assertThatThrownBy(() -> adminService.createTest(req, UUID.randomUUID()))
                 .isInstanceOf(ResponseStatusException.class)
@@ -243,7 +245,7 @@ class PsychometricAdminServiceTest {
     void createTest_personality_rejectsTimeLimitSecs() {
         var req = new CreatePsychometricTestRequest(
                 "Big-Five", null, null,
-                TestType.PERSONALITY, 1800  // personality must be untimed
+                TestType.PERSONALITY, 1800, null  // personality must be untimed
         );
         assertThatThrownBy(() -> adminService.createTest(req, UUID.randomUUID()))
                 .isInstanceOf(ResponseStatusException.class)
@@ -333,7 +335,7 @@ class PsychometricAdminServiceTest {
                 .build();
         when(testRepository.findById(testId)).thenReturn(java.util.Optional.of(test));
 
-        var req = new UpdatePsychometricTestRequest(null, null, null, 900);
+        var req = new UpdatePsychometricTestRequest(null, null, null, 900, null);
         assertThatThrownBy(() -> adminService.updateTest(testId, req, UUID.randomUUID()))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
@@ -617,5 +619,53 @@ class PsychometricAdminServiceTest {
                         org.springframework.web.server.ResponseStatusException.class,
                         () -> adminService.addQuestion(testId, req, actorId));
         assertThat(ex.getStatusCode().value()).isEqualTo(400);
+    }
+
+    // ── instrument resolve-or-create ──────────────────────────────────────────
+
+    @Test
+    void createTest_resolvesInstrumentAndExposesItInDto() {
+        UUID actorId = UUID.randomUUID();
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(org.mockito.Mockito.mock(User.class)));
+        when(formRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        PsychometricInstrument inst = PsychometricInstrument.builder()
+                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("big five").build();
+        when(instrumentService.resolveOrCreate("BigFive")).thenReturn(inst);
+
+        com.edge.pulse.data.dto.psychometric.CreatePsychometricTestRequest req =
+                new com.edge.pulse.data.dto.psychometric.CreatePsychometricTestRequest(
+                        "My Personality Test", "d", null, com.edge.pulse.data.enums.TestType.PERSONALITY, null, "BigFive");
+
+        com.edge.pulse.data.dto.psychometric.PsychometricTestDto dto = adminService.createTest(req, actorId);
+
+        assertThat(dto.instrument()).isEqualTo("Big Five (in development)");
+        assertThat(dto.instrumentId()).isEqualTo(inst.getId());
+        verify(instrumentService).resolveOrCreate("BigFive");
+    }
+
+    @Test
+    void updateTest_updatesInstrumentWhenProvided() {
+        UUID testId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        com.edge.pulse.data.models.psychometric.PsychometricTest test =
+                com.edge.pulse.data.models.psychometric.PsychometricTest.builder()
+                        .form(Form.builder().build()).name("T")
+                        .testType(com.edge.pulse.data.enums.TestType.PERSONALITY)
+                        .status(com.edge.pulse.data.enums.TestStatus.DRAFT).version(1).build();
+        when(testRepository.findById(testId)).thenReturn(Optional.of(test));
+        when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(formRepository.countActiveQuestionsByFormId(any())).thenReturn(0L);
+        PsychometricInstrument inst = PsychometricInstrument.builder()
+                .id(UUID.randomUUID()).displayName("PTI Plus").canonicalName("pti plus").build();
+        when(instrumentService.resolveOrCreate("PTI Plus")).thenReturn(inst);
+
+        com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest req =
+                new com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest(
+                        null, null, null, null, "PTI Plus");
+        com.edge.pulse.data.dto.psychometric.PsychometricTestDto dto =
+                adminService.updateTest(testId, req, actorId);
+
+        assertThat(dto.instrument()).isEqualTo("PTI Plus");
     }
 }

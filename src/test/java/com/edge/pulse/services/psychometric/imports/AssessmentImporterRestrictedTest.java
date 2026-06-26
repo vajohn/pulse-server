@@ -52,7 +52,7 @@ class AssessmentImporterRestrictedTest {
 
     private static PsychometricTestDto testDto(UUID testId) {
         return new PsychometricTestDto(testId, UUID.randomUUID(), "ATP", "desc", null,
-                "PERSONALITY", null, "DRAFT", 1, LocalDateTime.now(), 0, 0);
+                "PERSONALITY", null, "DRAFT", 1, LocalDateTime.now(), 0, 0, null, null);
     }
 
     private static QuestionDto scaleQuestionDto(UUID qId, UUID optId) {
@@ -95,7 +95,7 @@ class AssessmentImporterRestrictedTest {
                 List.of());
 
         importer.importPackage(
-                new ImportPackageRequest("ATP", "desc", TestType.PERSONALITY, null),
+                new ImportPackageRequest("ATP", "desc", TestType.PERSONALITY, null, null),
                 pkg, UUID.randomUUID());
 
         ArgumentCaptor<CreateScaleRequest> cap = ArgumentCaptor.forClass(CreateScaleRequest.class);

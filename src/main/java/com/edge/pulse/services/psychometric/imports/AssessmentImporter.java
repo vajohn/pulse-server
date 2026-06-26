@@ -79,7 +79,8 @@ public class AssessmentImporter {
 
         // 1. Create the test (Form + PsychometricTest).
         PsychometricTestDto test = admin.createTest(new CreatePsychometricTestRequest(
-                meta.testName(), meta.description(), null, meta.testType(), meta.timeLimitSecs()), userId);
+                meta.testName(), meta.description(), null, meta.testType(), meta.timeLimitSecs(),
+                meta.instrument()), userId);
         UUID testId = test.testId();
 
         // 2. Questions: header -> questionId, and (header,value) -> candidateAnswerId.

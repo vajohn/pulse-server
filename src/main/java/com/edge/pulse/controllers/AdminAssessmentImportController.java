@@ -80,7 +80,7 @@ public class AdminAssessmentImportController {
         ImportResultDto result;
         try {
             result = importer.importPackage(
-                    new ImportPackageRequest(testName, description, testType, timeLimitSecs),
+                    new ImportPackageRequest(testName, description, testType, timeLimitSecs, null),
                     outcome.pkg(),
                     imageBytes,
                     (UUID) auth.getPrincipal());

@@ -9,5 +9,7 @@ public record UpdatePsychometricTestRequest(
         String name,
         String description,
         String instructions,
-        Integer timeLimitSecs
+        Integer timeLimitSecs,
+        /** Optional instrument display name; null = leave unchanged. */
+        String instrument
 ) {}
