@@ -1,5 +1,6 @@
 package com.edge.pulse.data.enums;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -7,36 +8,70 @@ import java.util.Set;
  *
  * <p>The UI, validation layer, and admin service read this enum rather than
  * branching on {@code if (testType == COGNITIVE)} checks. Adding a future type
- * (SJT, EI, Aptitude, etc.) means one new enum constant here — no other
+ * (e.g. SJT, EI — see {@code ai/docs/adding-a-new-instrument-or-type.md}) means
+ * one new {@link TestType} constant plus one new constant here — no other
  * structural changes to routing, the hub, or the scoring engine.
  *
- * <p>COMPETENCY, SJT, EI, Aptitude, and other types are deliberately out of
- * scope. Each requires a dedicated design sprint to define question/answer
- * formats before any code is written.
+ * <p>Each constant carries self-documenting metadata ({@code displayLabel},
+ * {@code description}, {@code measures}, {@code exampleInstruments}) so the
+ * dashboard explains the taxonomy from a single source of truth (the
+ * {@code GET /api/admin/psychometric/test-types} catalog) instead of hardcoded copy.
  */
 public enum TestTypeCapabilities {
 
     COGNITIVE(
+            "Cognitive ability",
+            "Reasoning and problem-solving ability (right/wrong, timed).",
+            Measures.MAXIMAL,
+            List.of("Logical Reasoning", "Verbal Reasoning", "Numerical Reasoning", "Attention to Detail"),
             true,
             true,
             Set.of(QuestionType.CHOICE_SINGLE, QuestionType.CHOICE_MULTIPLE)
     ),
     PERSONALITY(
+            "Personality",
+            "Typical behaviour, traits & interests (self-report; no right/wrong).",
+            Measures.TYPICAL,
+            List.of("Big Five", "Adaptive Traits Profiler", "PTI Plus", "Vocational Interests (VIP)"),
             false,
             false,
             Set.of(QuestionType.SCALE, QuestionType.ADJECTIVE_CHECKLIST, QuestionType.FORCED_CHOICE)
+    ),
+    /**
+     * Competency scores are <em>derived</em> from other tests' scales (a weighted mean of
+     * trait/personality scale STENs, reverse-aware), per {@code Competency_scoring_psych.ipynb}.
+     * A competency test therefore has NO items of its own — {@link #allowedQuestionTypes} is empty,
+     * which makes {@code addQuestion} reject items with a clear message.
+     */
+    COMPETENCY(
+            "Competency",
+            "Job-relevant competencies derived from trait/personality scales.",
+            Measures.DERIVED,
+            List.of("Competency framework"),
+            false,
+            false,
+            Set.of()
     );
-    // COMPETENCY, SJT, EI, Aptitude, etc. are out of scope for this build.
-    // Each is added here when its question/answer formats have been designed.
-    // No other file changes needed.
 
+    public final String displayLabel;
+    public final String description;
+    public final Measures measures;
+    public final List<String> exampleInstruments;
     public final boolean timeLimitRequired;
     public final boolean timeLimitVisible;
     public final Set<QuestionType> allowedQuestionTypes;
 
-    TestTypeCapabilities(boolean timeLimitRequired,
+    TestTypeCapabilities(String displayLabel,
+                         String description,
+                         Measures measures,
+                         List<String> exampleInstruments,
+                         boolean timeLimitRequired,
                          boolean timeLimitVisible,
                          Set<QuestionType> allowedQuestionTypes) {
+        this.displayLabel = displayLabel;
+        this.description = description;
+        this.measures = measures;
+        this.exampleInstruments = exampleInstruments;
         this.timeLimitRequired = timeLimitRequired;
         this.timeLimitVisible = timeLimitVisible;
         this.allowedQuestionTypes = allowedQuestionTypes;
@@ -47,7 +82,7 @@ public enum TestTypeCapabilities {
      *
      * @throws IllegalArgumentException if {@code type} has no capability profile
      *                                  (should not happen as long as TestType and
-     *                                  TestTypeCapabilities stay in sync)
+     *                                  TestTypeCapabilities stay in sync — guarded by a test)
      */
     public static TestTypeCapabilities of(TestType type) {
         return valueOf(type.name());
