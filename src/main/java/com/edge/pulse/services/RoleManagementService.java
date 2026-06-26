@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 public class RoleManagementService {
 
     private static final Set<String> SCOPE_PERMISSIONS =
-            Set.of("SCOPE_TEAM", "SCOPE_ENTITY", "SCOPE_ORG_WIDE");
+            Set.of("SCOPE_TEAM", "SCOPE_ENTITY", "SCOPE_ORG_WIDE", "SCOPE_ALL");
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;

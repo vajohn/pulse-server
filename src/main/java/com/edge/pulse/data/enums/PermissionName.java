@@ -35,10 +35,11 @@ public enum PermissionName {
     ROLE_ASSIGN_APPROVE("Countersign role-assignment changes (dual-approval)"),
     ROLE_ALL("All role management permissions"),
 
-    // ── SCOPE — Data Visibility Qualifiers (no _ALL) ─────────────────────────
+    // ── SCOPE — Data Visibility Qualifiers ──────────────────────────────────
     SCOPE_TEAM("Team and subtree data visibility (own org unit and descendants)"),
     SCOPE_ENTITY("Company / legal entity data visibility (SF custom01 field)"),
     SCOPE_ORG_WIDE("Full org-wide visibility across all entities"),
+    SCOPE_ALL("All data-visibility scope permissions"),
 
     // ── FORM — Form & Survey Management ─────────────────────────────────────
     FORM_READ("View forms and their questions"),
@@ -77,10 +78,12 @@ public enum PermissionName {
 
     // ── AI — AI Features ─────────────────────────────────────────────────────
     AI_USE("Use AI assistant for analytics queries and insights"),
+    AI_ALL("All AI assistant permissions"),
 
     // ── SYS — System & Audit ─────────────────────────────────────────────────
     SYS_AUDIT_VIEW("View audit logs and admin activity history"),
-    SYS_APPROVE("Approve pending admin operations in approval workflows");
+    SYS_APPROVE("Approve pending admin operations in approval workflows"),
+    SYS_ALL("All system administration permissions");
 
     private final String description;
 

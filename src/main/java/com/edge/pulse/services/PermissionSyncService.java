@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 /**
- * Ensures all 55 permissions defined in {@link PermissionName} exist in the DB
+ * Ensures all 58 permissions defined in {@link PermissionName} exist in the DB
  * before any request is served.
  *
  * <p>This seeder is additive-only: it only inserts permissions that are missing.

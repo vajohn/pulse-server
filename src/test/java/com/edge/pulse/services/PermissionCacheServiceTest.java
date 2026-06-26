@@ -156,6 +156,45 @@ class PermissionCacheServiceTest {
     }
 
     @Test
+    void getPermissionsForRoles_scopeAllExpansion_includesAllScopeSubPermissions() {
+        when(setOps.members(CACHE_KEY)).thenReturn(null);
+        when(permissionRepository.findPermissionNamesByRoleName(ROLE))
+                .thenReturn(Set.of("SCOPE_ALL"));
+
+        Set<String> result = service.getPermissionsForRoles(List.of(ROLE));
+
+        assertThat(result).containsAll(List.of(
+                "SCOPE_TEAM", "SCOPE_ENTITY", "SCOPE_ORG_WIDE", "SCOPE_ALL"
+        ));
+    }
+
+    @Test
+    void getPermissionsForRoles_sysAllExpansion_includesAllSysSubPermissions() {
+        when(setOps.members(CACHE_KEY)).thenReturn(null);
+        when(permissionRepository.findPermissionNamesByRoleName(ROLE))
+                .thenReturn(Set.of("SYS_ALL"));
+
+        Set<String> result = service.getPermissionsForRoles(List.of(ROLE));
+
+        assertThat(result).containsAll(List.of(
+                "SYS_AUDIT_VIEW", "SYS_APPROVE", "SYS_ALL"
+        ));
+    }
+
+    @Test
+    void getPermissionsForRoles_aiAllExpansion_includesAllAiSubPermissions() {
+        when(setOps.members(CACHE_KEY)).thenReturn(null);
+        when(permissionRepository.findPermissionNamesByRoleName(ROLE))
+                .thenReturn(Set.of("AI_ALL"));
+
+        Set<String> result = service.getPermissionsForRoles(List.of(ROLE));
+
+        assertThat(result).containsAll(List.of("AI_USE", "AI_ALL"));
+        // AI_ALL is the only group entry — no other AI_* perms should bleed in
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     void getPermissionsForRoles_nonAllPermission_notExpanded() {
         when(setOps.members(CACHE_KEY)).thenReturn(null);
         when(permissionRepository.findPermissionNamesByRoleName(ROLE))

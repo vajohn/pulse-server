@@ -32,17 +32,21 @@ public class PermissionCacheService {
     private final Duration ttl;
     private static final String CACHE_KEY_PREFIX = "role:permissions:";
 
-    // _ALL convenience expansion — a role that holds USR_ALL automatically
-    // receives all USR_* sub-permissions. SCOPE_* permissions have no _ALL.
-    private static final Map<String, List<String>> ALL_EXPANSIONS = Map.of(
-        "USR_ALL",    List.of("USR_READ","USR_CREATE","USR_UPDATE","USR_DELETE","USR_ROLE_ASSIGN","USR_IMPORT","USR_ALL"),
-        "ORG_ALL",    List.of("ORG_READ","ORG_CREATE","ORG_UPDATE","ORG_DELETE","ORG_MOVE_USER","ORG_ALL"),
-        "SYNC_ALL",   List.of("SYNC_TRIGGER","SYNC_STATUS","SYNC_ALL"),
-        "ROLE_ALL",   List.of("ROLE_READ","ROLE_CREATE","ROLE_UPDATE","ROLE_DELETE","ROLE_ASSIGN_APPROVE","ROLE_ALL"),
-        "FORM_ALL",   List.of("FORM_READ","FORM_CREATE","FORM_UPDATE","FORM_DELETE","FORM_ASSIGN","FORM_PUBLISH","FORM_SESSION_READ","FORM_ALL"),
-        "ASSESS_ALL", List.of("ASSESS_READ","ASSESS_CREATE","ASSESS_UPDATE","ASSESS_DELETE","ASSESS_ASSIGN","ASSESS_KEY_MANAGE","ASSESS_RESULT_READ","ASSESS_COMPETENCY_MANAGE","ASSESS_ALL"),
-        "REPORT_ALL", List.of("REPORT_VIEW","REPORT_EXPORT","REPORT_TEXT_VIEW","REPORT_ASSESS_VIEW","REPORT_ALL"),
-        "SPARK_ALL",  List.of("SPARK_NOMINATE","SPARK_VOTE","SPARK_REVIEW","SPARK_MANAGE","SPARK_ALL")
+    // _ALL convenience expansion — a role that holds X_ALL automatically receives all X_* sub-permissions.
+    // Every permission group now has an _ALL entry (11 groups total).
+    // Map.ofEntries is used instead of Map.of because Map.of only supports up to 10 entries.
+    private static final Map<String, List<String>> ALL_EXPANSIONS = Map.ofEntries(
+        Map.entry("USR_ALL",    List.of("USR_READ","USR_CREATE","USR_UPDATE","USR_DELETE","USR_ROLE_ASSIGN","USR_IMPORT","USR_ALL")),
+        Map.entry("ORG_ALL",    List.of("ORG_READ","ORG_CREATE","ORG_UPDATE","ORG_DELETE","ORG_MOVE_USER","ORG_ALL")),
+        Map.entry("SYNC_ALL",   List.of("SYNC_TRIGGER","SYNC_STATUS","SYNC_ALL")),
+        Map.entry("ROLE_ALL",   List.of("ROLE_READ","ROLE_CREATE","ROLE_UPDATE","ROLE_DELETE","ROLE_ASSIGN_APPROVE","ROLE_ALL")),
+        Map.entry("SCOPE_ALL",  List.of("SCOPE_TEAM","SCOPE_ENTITY","SCOPE_ORG_WIDE","SCOPE_ALL")),
+        Map.entry("FORM_ALL",   List.of("FORM_READ","FORM_CREATE","FORM_UPDATE","FORM_DELETE","FORM_ASSIGN","FORM_PUBLISH","FORM_SESSION_READ","FORM_ALL")),
+        Map.entry("ASSESS_ALL", List.of("ASSESS_READ","ASSESS_CREATE","ASSESS_UPDATE","ASSESS_DELETE","ASSESS_ASSIGN","ASSESS_KEY_MANAGE","ASSESS_RESULT_READ","ASSESS_COMPETENCY_MANAGE","ASSESS_ALL")),
+        Map.entry("REPORT_ALL", List.of("REPORT_VIEW","REPORT_EXPORT","REPORT_TEXT_VIEW","REPORT_ASSESS_VIEW","REPORT_ALL")),
+        Map.entry("SPARK_ALL",  List.of("SPARK_NOMINATE","SPARK_VOTE","SPARK_REVIEW","SPARK_MANAGE","SPARK_ALL")),
+        Map.entry("AI_ALL",     List.of("AI_USE","AI_ALL")),
+        Map.entry("SYS_ALL",    List.of("SYS_AUDIT_VIEW","SYS_APPROVE","SYS_ALL"))
     );
 
     public PermissionCacheService(StringRedisTemplate redisTemplate,
