@@ -19,7 +19,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"form", "createdBy", "instrument"})
+@ToString(exclude = {"form", "createdBy", "instrument", "supersedes"})
 public class PsychometricTest {
 
     @Id
@@ -64,6 +64,13 @@ public class PsychometricTest {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "instrument_id")
     private PsychometricInstrument instrument;
+
+    /** Points to the prior ACTIVE version that this DRAFT revision supersedes.
+     *  Set when {@code revise()} clones a new DRAFT. On approval, the referenced
+     *  prior version is transitioned to RETIRED in the same transaction. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supersedes_id")
+    private PsychometricTest supersedes;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
