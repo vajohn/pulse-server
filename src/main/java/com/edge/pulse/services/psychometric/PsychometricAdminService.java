@@ -228,6 +228,8 @@ public class PsychometricAdminService {
         if (req.description() != null)  test.setDescription(req.description());
         if (req.instructions() != null) test.setInstructions(req.instructions());
         if (req.timeLimitSecs() != null) {
+            // timeLimitSecs is scoring-affecting — block on ACTIVE
+            assertEditableScoring(test);
             validateTimeLimitForType(test.getTestType(), req.timeLimitSecs());
             test.setTimeLimitSecs(req.timeLimitSecs());
         }
@@ -271,6 +273,7 @@ public class PsychometricAdminService {
     public PsychometricScaleDto createScale(UUID testId, CreateScaleRequest req, UUID createdById) {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(test);
 
         PsychometricScale parentScale = null;
         if (req.parentScaleId() != null) {
@@ -304,6 +307,7 @@ public class PsychometricAdminService {
                                             UpdateScaleRequest req, UUID updatedById) {
         PsychometricScale scale = scaleRepository.findById(scaleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(scale.getTest());
 
         if (req.name() != null)       scale.setName(req.name());
         if (req.description() != null) scale.setDescription(req.description());
@@ -328,9 +332,9 @@ public class PsychometricAdminService {
 
     @Transactional
     public void deleteScale(UUID testId, UUID scaleId, UUID deletedById) {
-        if (!scaleRepository.existsById(scaleId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
+        PsychometricScale scale = scaleRepository.findById(scaleId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(scale.getTest());
         scaleRepository.deleteById(scaleId);
         auditService.logAction(deletedById, "PSYCHOMETRIC_SCALE_DELETED", "PsychometricScale",
                 scaleId, auditService.buildDetail("testId", testId), null);
@@ -455,6 +459,7 @@ public class PsychometricAdminService {
     public QuestionDto addQuestion(UUID testId, AddQuestionRequest req, UUID createdById) {
         PsychometricTest test = testRepository.findByIdWithForm(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(test);
 
         // Validate question type against test type capabilities.
         TestTypeCapabilities caps = TestTypeCapabilities.of(test.getTestType());
@@ -488,6 +493,7 @@ public class PsychometricAdminService {
                                       UpdateQuestionRequest req, UUID updatedById) {
         PsychometricTest test = testRepository.findByIdWithForm(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(test);
 
         com.edge.pulse.data.models.Question question =
                 surveyService.updateQuestion(test.getForm().getId(), questionId, req);
@@ -505,6 +511,7 @@ public class PsychometricAdminService {
     public void deleteQuestion(UUID testId, UUID questionId, UUID deletedById) {
         PsychometricTest test = testRepository.findByIdWithForm(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(test);
 
         surveyService.expireQuestion(test.getForm().getId(), questionId);
 
@@ -576,6 +583,18 @@ public class PsychometricAdminService {
      *   <li>PERSONALITY: time limit must be absent (null).</li>
      * </ul>
      */
+    /**
+     * Throws 409 CONFLICT if the test is ACTIVE, preventing scoring-affecting edits.
+     * Name, description, and instructions are exempt — they don't affect scoring.
+     * To change scoring-affecting fields on an ACTIVE test, use {@code revise()}.
+     */
+    private void assertEditableScoring(PsychometricTest test) {
+        if (test.getStatus() == TestStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Test is ACTIVE — use revise() to change scoring-affecting fields");
+        }
+    }
+
     private void validateTimeLimitForType(TestType testType, Integer timeLimitSecs) {
         TestTypeCapabilities caps = TestTypeCapabilities.of(testType);
         if (caps.timeLimitRequired && (timeLimitSecs == null || timeLimitSecs <= 0)) {
@@ -645,6 +664,7 @@ public class PsychometricAdminService {
                                                    UUID userId) {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(test);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN));
 
@@ -748,6 +768,7 @@ public class PsychometricAdminService {
                                              UUID userId) {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        assertEditableScoring(test);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN));
 
