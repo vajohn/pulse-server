@@ -59,6 +59,14 @@ public class AdminPsychometricController {
         return ResponseEntity.noContent().build();
     }
 
+    // ── Type catalog ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/test-types")
+    @PreAuthorize("hasAuthority('ASSESS_READ')")
+    public ResponseEntity<List<TestTypeCapabilityDto>> listTestTypes() {
+        return ResponseEntity.ok(adminService.listTestTypeCapabilities());
+    }
+
     // ── Test CRUD ────────────────────────────────────────────────────────────────
 
     @GetMapping("/tests")

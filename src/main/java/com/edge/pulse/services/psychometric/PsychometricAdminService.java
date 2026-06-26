@@ -4,6 +4,7 @@ import com.edge.pulse.data.dto.AddQuestionRequest;
 import com.edge.pulse.data.dto.QuestionDto;
 import com.edge.pulse.data.dto.UpdateQuestionRequest;
 import com.edge.pulse.data.dto.psychometric.CandidateTestResultDetailsDto;
+import com.edge.pulse.data.dto.psychometric.TestTypeCapabilityDto;
 import com.edge.pulse.data.dto.psychometric.NormEntryDto;
 import com.edge.pulse.data.dto.psychometric.NormEntryRequest;
 import com.edge.pulse.data.dto.psychometric.ScoringKeyItemDto;
@@ -75,6 +76,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -106,6 +108,30 @@ public class PsychometricAdminService {
     private final NormEntryRepository normEntryRepository;
     private final CandidateAnswerRepository candidateAnswerRepository;
     private final NormScaleParamRepository normScaleParamRepository;
+
+    // ── Type catalog ──────────────────────────────────────────────────────────
+
+    /**
+     * Returns the enriched capability catalog for all test types.
+     * Single source of truth for the dashboard's type dropdown and tooltip.
+     */
+    @Transactional(readOnly = true)
+    public List<TestTypeCapabilityDto> listTestTypeCapabilities() {
+        return Arrays.stream(TestType.values())
+                .map(type -> {
+                    TestTypeCapabilities c = TestTypeCapabilities.of(type);
+                    return new TestTypeCapabilityDto(
+                            type.name(),
+                            c.displayLabel,
+                            c.description,
+                            c.measures,
+                            c.exampleInstruments,
+                            c.timeLimitRequired,
+                            c.timeLimitVisible,
+                            c.allowedQuestionTypes.stream().map(Enum::name).sorted().toList());
+                })
+                .toList();
+    }
 
     // ── Test CRUD ─────────────────────────────────────────────────────────────
 
