@@ -57,12 +57,12 @@ class AdminPsychometricCatalogControllerTest {
     @Test
     void instruments_returnsSuggestions() throws Exception {
         when(instrumentService.list()).thenReturn(List.of(
-                new InstrumentDto(UUID.randomUUID(), "PTI Plus", "pti plus", 3L)));
+                new InstrumentDto(UUID.randomUUID(), "PTI Plus", "ptiplus", 3L)));
 
         mockMvc.perform(get("/api/admin/psychometric/instruments"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].displayName").value("PTI Plus"))
-                .andExpect(jsonPath("$[0].canonicalName").value("pti plus"))
+                .andExpect(jsonPath("$[0].canonicalName").value("ptiplus"))
                 .andExpect(jsonPath("$[0].testCount").value(3));
     }
 }

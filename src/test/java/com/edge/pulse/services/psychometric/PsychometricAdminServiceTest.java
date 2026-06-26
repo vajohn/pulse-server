@@ -630,7 +630,7 @@ class PsychometricAdminServiceTest {
         when(formRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         PsychometricInstrument inst = PsychometricInstrument.builder()
-                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("big five").build();
+                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("bigfive").build();
         when(instrumentService.resolveOrCreate("BigFive")).thenReturn(inst);
 
         com.edge.pulse.data.dto.psychometric.CreatePsychometricTestRequest req =
@@ -657,7 +657,7 @@ class PsychometricAdminServiceTest {
         when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(formRepository.countActiveQuestionsByFormId(any())).thenReturn(0L);
         PsychometricInstrument inst = PsychometricInstrument.builder()
-                .id(UUID.randomUUID()).displayName("PTI Plus").canonicalName("pti plus").build();
+                .id(UUID.randomUUID()).displayName("PTI Plus").canonicalName("ptiplus").build();
         when(instrumentService.resolveOrCreate("PTI Plus")).thenReturn(inst);
 
         com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest req =

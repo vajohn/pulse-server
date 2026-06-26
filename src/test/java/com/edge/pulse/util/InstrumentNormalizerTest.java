@@ -8,25 +8,33 @@ class InstrumentNormalizerTest {
 
     @Test
     void bigFiveVariantsCollapseToOneCanonical() {
-        String expected = "big five";
+        // All separator/casing/spacing variants — including no-separator — must produce identical output.
+        String expected = "bigfive";
         assertThat(InstrumentNormalizer.canonical("BigFive")).isEqualTo(expected);
         assertThat(InstrumentNormalizer.canonical("big_five")).isEqualTo(expected);
         assertThat(InstrumentNormalizer.canonical("Big-Five")).isEqualTo(expected);
         assertThat(InstrumentNormalizer.canonical("Big  Five")).isEqualTo(expected);
         assertThat(InstrumentNormalizer.canonical("  Big Five  ")).isEqualTo(expected);
         assertThat(InstrumentNormalizer.canonical("Big.Five")).isEqualTo(expected);
+        // Key regression: no-separator variant that previously produced "bigfive" != "big five"
+        assertThat(InstrumentNormalizer.canonical("bigfive")).isEqualTo(expected);
+        assertThat(InstrumentNormalizer.canonical("BIG FIVE")).isEqualTo(expected);
     }
 
     @Test
     void preservesAlphanumericTokens() {
-        assertThat(InstrumentNormalizer.canonical("PTI Plus 2.0")).isEqualTo("pti plus 2 0");
-        assertThat(InstrumentNormalizer.canonical("CA.b")).isEqualTo("ca b");
+        // All separators stripped — "PTI Plus 2.0" → "ptiplus20"
+        assertThat(InstrumentNormalizer.canonical("PTI Plus 2.0")).isEqualTo("ptiplus20");
+        assertThat(InstrumentNormalizer.canonical("CA.b")).isEqualTo("cab");
     }
 
     @Test
     void distinctNamesStayDistinct() {
         assertThat(InstrumentNormalizer.canonical("Verbal Reasoning"))
                 .isNotEqualTo(InstrumentNormalizer.canonical("Numerical Reasoning"));
+        // big five vs big six must still differ
+        assertThat(InstrumentNormalizer.canonical("Big Five"))
+                .isNotEqualTo(InstrumentNormalizer.canonical("Big Six"));
     }
 
     @Test

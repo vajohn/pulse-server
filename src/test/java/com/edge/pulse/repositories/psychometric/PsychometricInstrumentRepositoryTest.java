@@ -23,17 +23,17 @@ class PsychometricInstrumentRepositoryTest {
 
     @Test
     void findByCanonicalName_matchesSeed() {
-        assertThat(repo.findByCanonicalName("big five")).isPresent();
-        assertThat(repo.findByCanonicalName("nope nope")).isEmpty();
+        assertThat(repo.findByCanonicalName("bigfive")).isPresent();
+        assertThat(repo.findByCanonicalName("nopenope")).isEmpty();
     }
 
     @Test
     void savesAndReadsBack() {
         PsychometricInstrument i = PsychometricInstrument.builder()
-                .displayName("Test Widget").canonicalName("test widget").build();
+                .displayName("Test Widget").canonicalName("testwidget").build();
         PsychometricInstrument saved = repo.saveAndFlush(i);
         assertThat(saved.getId()).isNotNull();
-        assertThat(repo.findByCanonicalName("test widget")).isPresent();
+        assertThat(repo.findByCanonicalName("testwidget")).isPresent();
 
         // Clean up the test data
         repo.delete(saved);

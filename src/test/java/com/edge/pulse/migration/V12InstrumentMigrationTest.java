@@ -38,7 +38,7 @@ class V12InstrumentMigrationTest {
     @Test
     void seedIsPresentAndCanonicalUnique() {
         Integer big = jdbc.queryForObject(
-                "SELECT count(*) FROM psychometric_instrument WHERE canonical_name = 'big five'",
+                "SELECT count(*) FROM psychometric_instrument WHERE canonical_name = 'bigfive'",
                 Integer.class);
         assertThat(big).isEqualTo(1);
 

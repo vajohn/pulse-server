@@ -26,8 +26,8 @@ class InstrumentServiceTest {
     @Test
     void resolveOrCreate_linksExistingByCanonical_reusingDisplay() {
         PsychometricInstrument existing = PsychometricInstrument.builder()
-                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("big five").build();
-        when(repo.findByCanonicalName("big five")).thenReturn(Optional.of(existing));
+                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("bigfive").build();
+        when(repo.findByCanonicalName("bigfive")).thenReturn(Optional.of(existing));
 
         PsychometricInstrument out = service.resolveOrCreate("Big-Five");
 
@@ -37,14 +37,27 @@ class InstrumentServiceTest {
     }
 
     @Test
+    void resolveOrCreate_linksExistingByCanonical_noSeparatorVariant() {
+        // Regression: "bigfive" (no separator) must resolve the same row as "Big Five"
+        PsychometricInstrument existing = PsychometricInstrument.builder()
+                .id(UUID.randomUUID()).displayName("Big Five (in development)").canonicalName("bigfive").build();
+        when(repo.findByCanonicalName("bigfive")).thenReturn(Optional.of(existing));
+
+        PsychometricInstrument out = service.resolveOrCreate("bigfive");
+
+        assertThat(out).isSameAs(existing);
+        verify(repo, never()).save(any());
+    }
+
+    @Test
     void resolveOrCreate_createsWhenCanonicalMissing() {
-        when(repo.findByCanonicalName("novel scale")).thenReturn(Optional.empty());
+        when(repo.findByCanonicalName("novelscale")).thenReturn(Optional.empty());
         when(repo.save(any(PsychometricInstrument.class))).thenAnswer(inv -> inv.getArgument(0));
 
         PsychometricInstrument out = service.resolveOrCreate("  Novel  Scale ");
 
         assertThat(out.getDisplayName()).isEqualTo("Novel  Scale"); // trimmed display
-        assertThat(out.getCanonicalName()).isEqualTo("novel scale");
+        assertThat(out.getCanonicalName()).isEqualTo("novelscale");
         verify(repo).save(any(PsychometricInstrument.class));
     }
 
@@ -59,7 +72,7 @@ class InstrumentServiceTest {
     @Test
     void list_mapsRowsWithTestCount() {
         UUID id = UUID.randomUUID();
-        Object[] row = { id, "PTI Plus", "pti plus", 3L };
+        Object[] row = { id, "PTI Plus", "ptiplus", 3L };
         when(repo.findAllWithTestCount()).thenReturn(List.<Object[]>of(row));
         var dtos = service.list();
         assertThat(dtos).hasSize(1);

@@ -19,17 +19,19 @@ ALTER TABLE psychometric_test
 CREATE INDEX idx_psychometric_test_instrument ON psychometric_test (instrument_id);
 
 -- Idempotent seed of the known in-scope instruments (canonical computed to match
--- InstrumentNormalizer: lowercase, non-alphanumeric runs → single space, trimmed).
+-- InstrumentNormalizer: lowercase then strip ALL non-alphanumeric characters.
+-- Parenthetical suffixes are excluded from the canonical so a user typing the base
+-- name (without acronym) resolves the same row — e.g. "Big Five" → 'bigfive'.
 -- ON CONFLICT (canonical_name) DO NOTHING keeps re-runs / repeated boots safe.
 INSERT INTO psychometric_instrument (display_name, canonical_name) VALUES
-    ('PTI Plus',                           'pti plus'),
-    ('Adaptive Traits Profiler (ATP)',      'adaptive traits profiler atp'),
-    ('Vocational Interests Profiler (VIP)', 'vocational interests profiler vip'),
-    ('Logical Reasoning (CA.b)',            'logical reasoning ca b'),
-    ('Verbal Reasoning (CA.a)',             'verbal reasoning ca a'),
-    ('Numerical Reasoning (CA.a)',          'numerical reasoning ca a'),
-    ('Attention to Detail (CA.a)',          'attention to detail ca a'),
-    ('English Reading Assessment',          'english reading assessment'),
-    ('English Listening Assessment',        'english listening assessment'),
-    ('Big Five (in development)',           'big five')
+    ('PTI Plus',                           'ptiplus'),
+    ('Adaptive Traits Profiler (ATP)',      'adaptivetraitsprofiler'),
+    ('Vocational Interests Profiler (VIP)', 'vocationalinterestsprofiler'),
+    ('Logical Reasoning (CA.b)',            'logicalreasoning'),
+    ('Verbal Reasoning (CA.a)',             'verbalreasoning'),
+    ('Numerical Reasoning (CA.a)',          'numericalreasoning'),
+    ('Attention to Detail (CA.a)',          'attentiontodetail'),
+    ('English Reading Assessment',          'englishreadingassessment'),
+    ('English Listening Assessment',        'englishlisteningassessment'),
+    ('Big Five (in development)',           'bigfive')
 ON CONFLICT (canonical_name) DO NOTHING;
