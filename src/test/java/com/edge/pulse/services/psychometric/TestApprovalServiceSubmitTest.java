@@ -9,7 +9,9 @@ import com.edge.pulse.data.models.User;
 import com.edge.pulse.data.models.psychometric.PsychometricTest;
 import com.edge.pulse.data.models.psychometric.ScoringKeyVersion;
 import com.edge.pulse.data.models.psychometric.TestApprovalRequest;
+import com.edge.pulse.repositories.FormRepository;
 import com.edge.pulse.repositories.UserRepository;
+import com.edge.pulse.repositories.psychometric.CompetencyScaleWeightRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricScaleRepository;
 import com.edge.pulse.repositories.psychometric.PsychometricTestRepository;
 import com.edge.pulse.repositories.psychometric.ScoringKeyVersionRepository;
@@ -38,10 +40,12 @@ class TestApprovalServiceSubmitTest {
 
     @Mock private PsychometricTestRepository testRepository;
     @Mock private UserRepository userRepository;
+    @Mock private FormRepository formRepository;
     @Mock private TestApprovalRequestRepository approvalRequestRepository;
     @Mock private ScoringKeyVersionRepository scoringKeyVersionRepository;
     @Mock private NormTableVersionRepository normTableVersionRepository;
     @Mock private PsychometricScaleRepository scaleRepository;
+    @Mock private CompetencyScaleWeightRepository competencyScaleWeightRepository;
     @Mock private AuditService auditService;
 
     @InjectMocks

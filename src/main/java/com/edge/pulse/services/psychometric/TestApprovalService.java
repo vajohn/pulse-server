@@ -42,6 +42,7 @@ public class TestApprovalService {
 
     private final PsychometricTestRepository testRepository;
     private final UserRepository userRepository;
+    private final FormRepository formRepository;
     private final TestApprovalRequestRepository approvalRequestRepository;
     private final ScoringKeyVersionRepository scoringKeyVersionRepository;
     private final NormTableVersionRepository normTableVersionRepository;
@@ -203,12 +204,12 @@ public class TestApprovalService {
 
         // Clone the test metadata into a new DRAFT version.
         // A new Form is required (psychometric_test has a unique FK on form_id).
-        Form newForm = Form.builder()
+        Form newForm = formRepository.save(Form.builder()
                 .title(prior.getName())
                 .description(prior.getDescription())
                 .formType(prior.getForm().getFormType())
                 .anonWindowMinutes(0)
-                .build();
+                .build());
 
         PsychometricTest clone = PsychometricTest.builder()
                 .form(newForm)
