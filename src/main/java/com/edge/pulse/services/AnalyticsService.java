@@ -302,13 +302,18 @@ public class AnalyticsService {
         WindowComposite cur = computeWindow(pathFilter, exactOnly, curStart, now);
 
         // SERVER-SIDE privacy gate: suppress everything below the threshold (distinct
-        // respondents across BOTH sources). Computed before any aggregate serializes.
-        long respondents = cur.respondentSessionIds.size();
-        if (respondents < MIN_RESPONDENTS) {
+        // respondent sessions across BOTH sources). Sessions are the k-anonymity unit
+        // — a user completing twice provides two independent data points.
+        // Computed before any aggregate serializes.
+        long respondentSessions = cur.respondentSessionIds.size();
+        if (respondentSessions < MIN_RESPONDENTS) {
             return EngagementSummaryDto.masked(
                     normalizeScopeLevel(scopeLevel), resolvedNodeId, resolvedNodeName,
                     includeChildren, periodDays);
         }
+        // Distinct respondent USERS (participation-rate numerator). A user who completed
+        // the form twice still counts as one contributor — prevents rate > 100%.
+        long respondents = cur.respondentUserIds.size();
 
         double overall = cur.overall();
 
@@ -341,8 +346,10 @@ public class AnalyticsService {
             // startsWith that would let "/EDGE/7001" match sibling "/EDGE/70011".
             eligibleUsers = userRepository.countActiveInSubtree(pathFilter);
         }
+        // Cap at 100.0: respondents is distinct users, but numerical edge-cases
+        // (e.g. eligible count slightly lagging a sync) are guarded defensively.
         double participationRate = eligibleUsers > 0
-                ? (double) respondents / eligibleUsers * 100.0
+                ? Math.min(100.0, (double) respondents / eligibleUsers * 100.0)
                 : 0.0;
 
         // Trend vs the immediately-preceding window of the same length (combined sources).
@@ -380,6 +387,15 @@ public class AnalyticsService {
      * read. SCALE rows are normalized in SQL; RATING submissions (which may carry multiple
      * MULTI_RATING subject rows) are collapsed to one averaged value per submission and
      * normalized here. See the TODO(engagement-source) note above for why both are combined.
+     *
+     * <p>Two distinct sets are maintained in the result:
+     * <ul>
+     *   <li>{@code respondentSessionIds} — distinct completed session IDs across BOTH sources.
+     *       Used as the k-anonymity gate ({@code MIN_RESPONDENTS}) to suppress small cohorts.</li>
+     *   <li>{@code respondentUserIds} — distinct respondent USER IDs across BOTH sources.
+     *       Used as the participation-rate numerator so a user who completed the form twice
+     *       counts once, preventing participationRate &gt; 100%.</li>
+     * </ul>
      */
     private WindowComposite computeWindow(String pathFilter, boolean exactOnly,
                                           LocalDateTime since, LocalDateTime until) {
@@ -419,13 +435,20 @@ public class AnalyticsService {
         for (UUID sid : scaleRepo.findRespondentSessionIdsInWindow(pathFilter, exactOnly, since, until)) {
             w.respondentSessionIds.add(sid);
         }
+        // Distinct respondent user IDs (SCALE source) — participation numerator.
+        for (UUID uid : scaleRepo.findRespondentUserIdsInWindow(pathFilter, exactOnly, since, until)) {
+            w.respondentUserIds.add(uid);
+        }
 
-        // ── RATING source (per-submission rows; normalize 1..5 here) ──────────
-        for (Object[] r : ratingRepo.findSubmissionRatingsInWindow(pathFilter, exactOnly, since, until)) {
-            String title   = (String) r[0];
-            UUID sessionId = (UUID) r[1];
-            double avgStars = ((Number) r[2]).doubleValue();
-            int maxStars    = ((Number) r[3]).intValue();
+        // ── RATING source (per-submission rows + userId; normalize 1..5 here) ──
+        // Uses the extended query that also returns rs.user.id so we can populate
+        // respondentUserIds without an extra round-trip per session.
+        for (Object[] r : ratingRepo.findSubmissionRatingsWithUserInWindow(pathFilter, exactOnly, since, until)) {
+            String title    = (String) r[0];
+            UUID sessionId  = (UUID) r[1];
+            UUID userId     = (UUID) r[2];
+            double avgStars = ((Number) r[3]).doubleValue();
+            int maxStars    = ((Number) r[4]).intValue();
             // Normalize stars in [1, maxStars] to 1..5. maxStars == 5 → identity.
             // Guard degenerate maxStars <= 1 (single-star scale carries no signal): skip.
             if (maxStars <= 1) continue;
@@ -443,6 +466,10 @@ public class AnalyticsService {
 
             w.distribution.merge(clampBucket((int) Math.round(norm)), 1L, Long::sum);
             w.respondentSessionIds.add(sessionId);
+            // Track the respondent user for the participation-rate numerator.
+            if (userId != null) {
+                w.respondentUserIds.add(userId);
+            }
         }
 
         return w;
@@ -468,8 +495,19 @@ public class AnalyticsService {
         double sum;                                                   // Σ normalized values
         long count;                                                   // # normalized values
         final Map<String, FormAccumulator> perForm = new LinkedHashMap<>();
-        final Map<Integer, Long> distribution = new LinkedHashMap<>(); // bucket(1..5) → count
+        final Map<Integer, Long> distribution = new LinkedHashMap<>();  // bucket(1..5) → count
+        /**
+         * Distinct session IDs across BOTH sources.
+         * Used as the k-anonymity gate (MIN_RESPONDENTS): each completed session represents
+         * an independent data point regardless of whether the same user repeated the form.
+         */
         final java.util.Set<UUID> respondentSessionIds = new java.util.HashSet<>();
+        /**
+         * Distinct respondent USER IDs across BOTH sources.
+         * Used as the participation-rate numerator: a user who completed the form twice
+         * counts as one contributor — preventing participationRate > 100%.
+         */
+        final java.util.Set<UUID> respondentUserIds = new java.util.HashSet<>();
         double overall() { return count > 0 ? sum / count : 0.0; }
     }
 
@@ -570,9 +608,18 @@ public class AnalyticsService {
             identifiedSessions = sessionRepository.countCompletedByFormAndAnonymous(formId, false);
         }
 
-        // Completion rate based on eligible users (identified sessions / eligible users)
+        // Participation-rate numerator = distinct respondent USERS (not raw session count).
+        // A user who completed the form twice must count once; using identifiedSessions would
+        // allow the rate to exceed 100% in that case. Anonymous sessions have no user and
+        // cannot appear in the eligible-user denominator, so they are excluded from the numerator.
+        long distinctRespondentUsers = pathPrefix != null
+                ? sessionRepository.countDistinctRespondentUsersByFormAndPath(formId, pathPrefix)
+                : sessionRepository.countDistinctRespondentUsersByForm(formId);
+
+        // Completion rate: capped at 100.0 in case of any residual edge-case
+        // (e.g. eligible count slightly lagging a sync or deleted-user gap).
         double completionRate = totalEligibleUsers > 0
-                ? (double) identifiedSessions / totalEligibleUsers * 100.0
+                ? Math.min(100.0, (double) distinctRespondentUsers / totalEligibleUsers * 100.0)
                 : 0.0;
 
         boolean surveyThresholdMet = completedSessions >= MIN_RESPONDENTS;
@@ -697,7 +744,9 @@ public class AnalyticsService {
             ouName     = "Unknown";
         }
 
-        double rate = eligible > 0 ? (double) completed / eligible * 100.0 : 0.0;
+        // completed = raw session count (may be > eligible when a user repeats a form).
+        // Cap rate at 100.0 so the per-assignment breakdown never shows > 100%.
+        double rate = eligible > 0 ? Math.min(100.0, (double) completed / eligible * 100.0) : 0.0;
         return new AssignmentBreakdownDto(
                 sa.getId(), ouName, ouId,
                 eligible, completed, inProgress,
@@ -956,7 +1005,7 @@ public class AnalyticsService {
                             (String) row[0],
                             ((Number) row[1]).longValue(),
                             responseCount > 0
-                                    ? ((Number) row[1]).doubleValue() / responseCount * 100.0
+                                    ? Math.min(100.0, ((Number) row[1]).doubleValue() / responseCount * 100.0)
                                     : 0.0))
                     .toList();
         }

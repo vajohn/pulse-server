@@ -124,10 +124,15 @@ class EngagementAnalyticsServiceTest {
     }
 
     /**
-     * Default-stubs the SCALE-source window queries to "empty" so each test only has to
-     * stub what it cares about. Marked lenient — individual tests override the relevant
-     * scope/window matchers. The current window uses exactOnly per the test; the prior
-     * window is empty unless a test stubs it.
+     * Default-stubs the SCALE-source and RATING-source window queries to "empty" so each
+     * test only has to stub what it cares about. Marked lenient — individual tests override
+     * the relevant scope/window matchers. The current window uses exactOnly per the test;
+     * the prior window is empty unless a test stubs it.
+     *
+     * <p>Note: {@code findSubmissionRatingsInWindow} is no longer called by the service;
+     * {@code findSubmissionRatingsWithUserInWindow} (5-column rows including userId) is used
+     * instead so the service can populate both {@code respondentSessionIds} (k-anon gate)
+     * and {@code respondentUserIds} (participation-rate numerator).
      */
     @BeforeEach
     void emptyScaleWindowsByDefault() {
@@ -141,7 +146,10 @@ class EngagementAnalyticsServiceTest {
                 .thenReturn(List.of());
         lenient().when(scaleRepo.findRespondentSessionIdsInWindow(any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of());
-        lenient().when(ratingRepo.findSubmissionRatingsInWindow(any(), anyBoolean(), any(), any()))
+        lenient().when(scaleRepo.findRespondentUserIdsInWindow(any(), anyBoolean(), any(), any()))
+                .thenReturn(List.of());
+        // Extended RATING query (5 columns: formTitle, sessionId, userId, avgStars, maxStars).
+        lenient().when(ratingRepo.findSubmissionRatingsWithUserInWindow(any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of());
     }
 
@@ -156,16 +164,20 @@ class EngagementAnalyticsServiceTest {
         authContext(userId, "SCOPE_ORG_WIDE");
         when(orgUnitRepository.findById(ou.getId())).thenReturn(java.util.Optional.of(ou));
 
-        // 2 SCALE respondents + 2 RATING respondents (distinct) = 4 < MIN_RESPONDENTS(5)
+        // 2 SCALE respondent sessions + 2 RATING respondent sessions (distinct) = 4 < MIN_RESPONDENTS(5).
+        // Privacy gate is session-based; 4 sessions is still below threshold regardless of user count.
         List<UUID> scaleSessions = sessionIds(2);
         when(scaleRepo.findRespondentSessionIdsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
                 .thenReturn(scaleSessions);
         when(scaleRepo.sumNormalizedInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
                 .thenReturn(java.util.List.<Object[]>of(new Object[]{8.0, 2L}));
-        when(ratingRepo.findSubmissionRatingsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+        // Extended RATING query — 5 columns: formTitle, sessionId, userId, avgStars, maxStars.
+        UUID ratingUser1 = UUID.randomUUID();
+        UUID ratingUser2 = UUID.randomUUID();
+        when(ratingRepo.findSubmissionRatingsWithUserInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
                 .thenReturn(List.<Object[]>of(
-                        new Object[]{"Survey A", UUID.randomUUID(), 4.0, 5},
-                        new Object[]{"Survey A", UUID.randomUUID(), 4.0, 5}));
+                        new Object[]{"Survey A", UUID.randomUUID(), ratingUser1, 4.0, 5},
+                        new Object[]{"Survey A", UUID.randomUUID(), ratingUser2, 4.0, 5}));
 
         EngagementSummaryDto dto = service.getEngagementSummary("TEAM", ou.getId(), true, 30, userId);
 
@@ -207,13 +219,21 @@ class EngagementAnalyticsServiceTest {
                 .thenReturn(scaleSessions.stream()
                         .map(sid -> new Object[]{"Pulse Q1", sid}).toList());
 
-        // RATING source: 2 submissions (distinct sessions) on a 10-star scale.
+        // RATING source: 2 submissions (distinct users, distinct sessions) on a 10-star scale.
         //   stars 10 / max 10 → 1 + 4*(10-1)/(10-1) = 5.0
         //   stars 5.5 / max 10 → 1 + 4*(5.5-1)/9 = 1 + 4*4.5/9 = 1 + 2.0 = 3.0
-        when(ratingRepo.findSubmissionRatingsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+        // Extended query — 5 columns: formTitle, sessionId, userId, avgStars, maxStars.
+        UUID ratingUser1 = UUID.randomUUID();
+        UUID ratingUser2 = UUID.randomUUID();
+        when(ratingRepo.findSubmissionRatingsWithUserInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
                 .thenReturn(List.<Object[]>of(
-                        new Object[]{"Pulse Q1", UUID.randomUUID(), 10.0, 10},
-                        new Object[]{"Pulse Q1", UUID.randomUUID(), 5.5, 10}));
+                        new Object[]{"Pulse Q1", UUID.randomUUID(), ratingUser1, 10.0, 10},
+                        new Object[]{"Pulse Q1", UUID.randomUUID(), ratingUser2, 5.5, 10}));
+
+        // Distinct respondent user IDs (SCALE source) — 3 distinct users.
+        List<UUID> scaleUserIds = java.util.stream.Stream.generate(UUID::randomUUID).limit(3).toList();
+        when(scaleRepo.findRespondentUserIdsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(scaleUserIds);
 
         when(userRepository.countActiveInSubtree("/EDGE/OPS")).thenReturn(10L);
 
@@ -296,11 +316,16 @@ class EngagementAnalyticsServiceTest {
         authContext(userId, "SCOPE_ORG_WIDE");
         when(orgUnitRepository.findById(ou.getId())).thenReturn(java.util.Optional.of(ou));
 
-        // exactOnly = true expected when includeChildren = false
+        // exactOnly = true expected when includeChildren = false.
+        // 6 distinct sessions AND 6 distinct users → participation = 6/6 = 100%.
+        List<UUID> scaleUsers = java.util.stream.Stream.generate(UUID::randomUUID).limit(6).toList();
         when(scaleRepo.sumNormalizedInWindow(eq("/EDGE/OPS"), eq(true), any(), any()))
                 .thenReturn(java.util.List.<Object[]>of(new Object[]{18.0, 6L}));
         when(scaleRepo.findRespondentSessionIdsInWindow(eq("/EDGE/OPS"), eq(true), any(), any()))
                 .thenReturn(sessionIds(6));
+        // participation-rate numerator = distinct users (not sessions).
+        when(scaleRepo.findRespondentUserIdsInWindow(eq("/EDGE/OPS"), eq(true), any(), any()))
+                .thenReturn(scaleUsers);
         when(userRepository.countByOrgUnitIdAndActiveTrue(ou.getId())).thenReturn(6L);
 
         EngagementSummaryDto dto = service.getEngagementSummary("TEAM", ou.getId(), false, 30, userId);
@@ -318,20 +343,18 @@ class EngagementAnalyticsServiceTest {
         authContext(userId, "SCOPE_ORG_WIDE");
         // No-node fallback now gates on SCOPE_ORG_WIDE directly (not hasBroadScope).
 
-        // current window
+        // current window: 50 distinct sessions AND 50 distinct users.
+        // Both stubs use the same matcher → both current and prior windows return the same
+        // values → prior overall == current overall → FLAT trend, prior respondents = 50 (≥5).
+        List<UUID> globalUsers = java.util.stream.Stream.generate(UUID::randomUUID).limit(50).toList();
         when(scaleRepo.sumNormalizedInWindow(isNull(), eq(false), any(), any()))
                 .thenReturn(java.util.List.<Object[]>of(new Object[]{195.0, 50L}));  // mean 3.9
         when(scaleRepo.findRespondentSessionIdsInWindow(isNull(), eq(false), any(), any()))
                 .thenReturn(sessionIds(50));
+        // participation-rate numerator = 50 distinct users out of 100 eligible → 50%.
+        when(scaleRepo.findRespondentUserIdsInWindow(isNull(), eq(false), any(), any()))
+                .thenReturn(globalUsers);
         when(userRepository.countByActiveTrue()).thenReturn(100L);
-        // prior window: same mean → FLAT. We must stub BOTH sum and respondent ids for prev.
-        // Distinguish windows is awkward with any(); supply prior respondents via a count >=5
-        // by stubbing the same method to also return a set on the prior call is not possible
-        // with a single matcher, so we assert FLAT by making prior overall equal.
-        // Use a separate path-agnostic stub for the prior respondent-id set:
-        // (the @BeforeEach default returns empty → NO_PRIOR_DATA). Override here:
-        // Both windows share the isNull/false matcher, so the stub returns the same value for
-        // both calls (current and prior) → prior overall == current → FLAT, prior respondents=50.
 
         EngagementSummaryDto dto = service.getEngagementSummary(null, null, true, 30, userId);
 
@@ -423,10 +446,14 @@ class EngagementAnalyticsServiceTest {
         // The caller's OWN subtree (/EDGE/MY_ENTITY/OPS) is what the fallback MUST bind to.
         // Give it its own distinct, above-threshold data so we can positively assert the
         // result reflects ONLY this scope — never the global/foreign aggregate.
+        List<UUID> ownSubtreeUsers = java.util.stream.Stream.generate(UUID::randomUUID).limit(5).toList();
         when(scaleRepo.sumNormalizedInWindow(eq(ownUnit.getPath()), eq(false), any(), any()))
                 .thenReturn(java.util.List.<Object[]>of(new Object[]{17.5, 5L}));  // own mean 3.5
         when(scaleRepo.findRespondentSessionIdsInWindow(eq(ownUnit.getPath()), eq(false), any(), any()))
                 .thenReturn(sessionIds(5));
+        // participation numerator: 5 distinct users in own subtree (not 60/100 global or foreign).
+        when(scaleRepo.findRespondentUserIdsInWindow(eq(ownUnit.getPath()), eq(false), any(), any()))
+                .thenReturn(ownSubtreeUsers);
         when(userRepository.countActiveInSubtree(ownUnit.getPath())).thenReturn(20L);
 
         EngagementSummaryDto dto = service.getEngagementSummary("ENTITY", foreign.getId(), true, 30, caller.getId());
@@ -436,7 +463,7 @@ class EngagementAnalyticsServiceTest {
         assertThat(dto.nodeName()).isNull();
 
         // PROOF OF NO LEAK: the scope used is the caller's OWN subtree, NOT the global aggregate.
-        // - respondents = 5 (own subtree), NOT 60 (global) and NOT 100 (foreign).
+        // - respondents = 5 distinct users (own subtree), NOT 60 (global) and NOT 100 (foreign).
         // - overall = 3.5 (own mean), NOT 4.0 (global/foreign mean).
         // - eligibleUsers = 20 (own countActiveInSubtree), NOT 500 (global countByActiveTrue).
         assertThat(dto.masked()).isFalse();
@@ -467,10 +494,14 @@ class EngagementAnalyticsServiceTest {
         when(orgUnitScopeService.resolveAccessibleOrgUnitIds(eq(caller.getId()), anyCollection()))
                 .thenReturn(List.of(ownNode.getId()));
 
+        List<UUID> ownNodeUsers = java.util.stream.Stream.generate(UUID::randomUUID).limit(5).toList();
         when(scaleRepo.sumNormalizedInWindow(eq(ownNode.getPath()), eq(false), any(), any()))
                 .thenReturn(java.util.List.<Object[]>of(new Object[]{20.0, 5L}));
         when(scaleRepo.findRespondentSessionIdsInWindow(eq(ownNode.getPath()), eq(false), any(), any()))
                 .thenReturn(sessionIds(5));
+        // participation numerator: 5 distinct users.
+        when(scaleRepo.findRespondentUserIdsInWindow(eq(ownNode.getPath()), eq(false), any(), any()))
+                .thenReturn(ownNodeUsers);
         when(userRepository.countActiveInSubtree(ownNode.getPath())).thenReturn(10L);
 
         EngagementSummaryDto dto = service.getEngagementSummary("ENTITY", ownNode.getId(), true, 30, caller.getId());
@@ -536,5 +567,70 @@ class EngagementAnalyticsServiceTest {
 
         // Nonsense (and unsafe) scope label is NOT echoed back; normalized to GLOBAL.
         assertThat(dto.scopeLevel()).isEqualTo("GLOBAL");
+    }
+
+    // -----------------------------------------------------------------------
+    // Participation-rate correctness: rate ≤ 100%, distinct user count
+    // -----------------------------------------------------------------------
+
+    /**
+     * A user who completed the form twice contributes 2 sessions to the k-anonymity gate
+     * (sessions ≥ MIN_RESPONDENTS), but only counts ONCE in the participation-rate numerator.
+     * Without the fix, respondents/eligible would use session count → rate > 100%.
+     */
+    @Test
+    void engagement_userWithTwoSessions_countedOnceInParticipationRate() {
+        OrganizationalUnit ou = orgUnit("/EDGE/OPS");
+        UUID userId = UUID.randomUUID();
+        authContext(userId, "SCOPE_ORG_WIDE");
+        when(orgUnitRepository.findById(ou.getId())).thenReturn(java.util.Optional.of(ou));
+
+        // 6 sessions from only 3 distinct users (each user completed twice).
+        // k-anonymity gate: 6 sessions ≥ MIN_RESPONDENTS(5) → not masked.
+        // Participation numerator: 3 distinct users (not 6 sessions).
+        when(scaleRepo.sumNormalizedInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(java.util.List.<Object[]>of(new Object[]{24.0, 6L}));
+        when(scaleRepo.findRespondentSessionIdsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(sessionIds(6)); // 6 sessions (k-anon gate)
+        List<UUID> threeDistinctUsers = java.util.stream.Stream.generate(UUID::randomUUID).limit(3).toList();
+        when(scaleRepo.findRespondentUserIdsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(threeDistinctUsers); // 3 distinct users (rate numerator)
+        // Only 3 eligible users in the org unit.
+        when(userRepository.countActiveInSubtree("/EDGE/OPS")).thenReturn(3L);
+
+        EngagementSummaryDto dto = service.getEngagementSummary("TEAM", ou.getId(), true, 30, userId);
+
+        assertThat(dto.masked()).isFalse();
+        // respondents = 3 distinct users, not 6 sessions.
+        assertThat(dto.respondents()).isEqualTo(3);
+        assertThat(dto.eligibleUsers()).isEqualTo(3);
+        // participationRate = 3/3 * 100 = 100.0 — NOT 200% (which the old code produced).
+        assertThat(dto.participationRate()).isEqualTo(100.0);
+    }
+
+    /** participationRate is capped at 100 even if the eligible count is slightly stale. */
+    @Test
+    void engagement_participationRateCappedAt100() {
+        OrganizationalUnit ou = orgUnit("/EDGE/OPS");
+        UUID userId = UUID.randomUUID();
+        authContext(userId, "SCOPE_ORG_WIDE");
+        when(orgUnitRepository.findById(ou.getId())).thenReturn(java.util.Optional.of(ou));
+
+        // 6 sessions from 6 distinct users but eligible count is only 5 (stale/delete lag).
+        when(scaleRepo.sumNormalizedInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(java.util.List.<Object[]>of(new Object[]{24.0, 6L}));
+        when(scaleRepo.findRespondentSessionIdsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(sessionIds(6));
+        when(scaleRepo.findRespondentUserIdsInWindow(eq("/EDGE/OPS"), eq(false), any(), any()))
+                .thenReturn(java.util.stream.Stream.generate(UUID::randomUUID).limit(6).toList());
+        // Eligible = 5 (slightly stale — one user was deleted since they responded).
+        when(userRepository.countActiveInSubtree("/EDGE/OPS")).thenReturn(5L);
+
+        EngagementSummaryDto dto = service.getEngagementSummary("TEAM", ou.getId(), true, 30, userId);
+
+        assertThat(dto.masked()).isFalse();
+        // Without cap: 6/5 * 100 = 120%. With cap: 100.0.
+        assertThat(dto.participationRate()).isEqualTo(100.0);
+        assertThat(dto.participationRate()).isLessThanOrEqualTo(100.0);
     }
 }

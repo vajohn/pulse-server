@@ -44,6 +44,19 @@ class NormStandardizerTest {
                 .isEqualByComparingTo("100.00");
     }
 
+    @Test
+    void percentile_extremeZ_staysWithin0To100() {
+        // Very large positive z — must never exceed 100.00
+        BigDecimal hi = NormStandardizer.percentile(bd("37.0"));
+        assertThat(hi).isLessThanOrEqualTo(bd("100.00"));
+        assertThat(hi).isGreaterThanOrEqualTo(bd("0.00"));
+
+        // Very large negative z — must never go below 0.00
+        BigDecimal lo = NormStandardizer.percentile(bd("-37.0"));
+        assertThat(lo).isGreaterThanOrEqualTo(bd("0.00"));
+        assertThat(lo).isLessThanOrEqualTo(bd("100.00"));
+    }
+
     // ── Golden vector: raw/mean/sd straight through ─────────────────────────────
     @Test
     void goldenVector_raw70_mean50_sd10() {

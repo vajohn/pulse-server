@@ -30,10 +30,11 @@ public final class NormStandardizer {
         return sten;
     }
 
-    /** percentile = Phi(z) * 100, HALF_UP to 2 decimals. */
+    /** percentile = Phi(z) * 100, HALF_UP to 2 decimals, clamped to [0, 100]. */
     public static BigDecimal percentile(BigDecimal z) {
         double phi = 0.5 * (1.0 + erf(z.doubleValue() / Math.sqrt(2.0)));
-        return BigDecimal.valueOf(phi * 100.0).setScale(2, RoundingMode.HALF_UP);
+        double pct = Math.max(0.0, Math.min(100.0, phi * 100.0));
+        return BigDecimal.valueOf(pct).setScale(2, RoundingMode.HALF_UP);
     }
 
     /** STEN to one decimal, clamped to [1,10], round-half-even (matches numpy .round(1)). */

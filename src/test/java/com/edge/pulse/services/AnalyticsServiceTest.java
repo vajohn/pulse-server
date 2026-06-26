@@ -553,6 +553,75 @@ class AnalyticsServiceTest {
     }
 
     @Test
+    void getSurveyReport_choiceOption_countExceedsResponseCount_percentageCappedAt100() {
+        // Live-query path (no MV entry for qid): countByQuestionId returns 10 (distinct respondents),
+        // but findDistributionByQuestionId returns option A with count 15 (multi-select re-submission).
+        // Without the clamp this would yield 150% — must be capped to 100%.
+        UUID sid = UUID.randomUUID();
+        UUID qid = UUID.randomUUID();
+        Form form = Form.builder().id(sid).title("Multi-select Survey").build();
+        Question q = Question.builder()
+                .id(qid).body("Pick all that apply").questionType(QuestionType.CHOICE).displayOrder(0).build();
+
+        when(formRepository.findById(sid)).thenReturn(Optional.of(form));
+        when(assignmentRepository.findByFormIdAndActiveTrue(sid)).thenReturn(List.of());
+        when(sessionRepository.countCompletedByForm(sid)).thenReturn(10L);
+        when(sessionRepository.countInProgressByForm(sid)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, true)).thenReturn(5L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, false)).thenReturn(5L);
+        when(questionRepository.findByFormIdOrderByDisplayOrderAsc(sid)).thenReturn(List.of(q));
+        when(questionScaleMvRepo.findDistributionsByQuestionIds(anyCollection())).thenReturn(Map.of());
+        // Empty MV map → live-query path used for both count and distribution
+        when(questionChoiceMvRepo.findDistributionsByQuestionIds(anyCollection())).thenReturn(Map.of());
+        when(questionRatingMvRepo.findStatsByQuestionIds(anyCollection())).thenReturn(Map.of());
+        // Live-query: distinct-respondent count = 10, but option A appears 15 times (re-submission)
+        when(choiceRepo.countByQuestionId(qid)).thenReturn(10L);
+        when(choiceRepo.findDistributionByQuestionId(qid)).thenReturn(List.of(
+                new Object[]{"Option A", 15L},
+                new Object[]{"Option B", 3L}
+        ));
+
+        SurveyReportDto result = service.getSurveyReport(sid);
+
+        var dist = result.questionBreakdowns().get(0).choiceDistribution();
+        double pctA = dist.get(0).percentage();
+        double pctB = dist.get(1).percentage();
+
+        // Option A: raw 150% → clamped to 100%
+        assertThat(pctA).isLessThanOrEqualTo(100.0);
+        assertThat(pctA).isCloseTo(100.0, within(0.01));
+        // Option B: 3/10 = 30% — well within range, unaffected
+        assertThat(pctB).isCloseTo(30.0, within(0.01));
+    }
+
+    @Test
+    void getSurveyReport_choiceOption_zeroResponseCount_percentageIsZero() {
+        UUID sid = UUID.randomUUID();
+        UUID qid = UUID.randomUUID();
+        Form form = Form.builder().id(sid).title("Empty Survey").build();
+        Question q = Question.builder()
+                .id(qid).body("Pick one").questionType(QuestionType.CHOICE).displayOrder(0).build();
+
+        when(formRepository.findById(sid)).thenReturn(Optional.of(form));
+        when(assignmentRepository.findByFormIdAndActiveTrue(sid)).thenReturn(List.of());
+        // Zero completed sessions → responseCount = 0
+        when(sessionRepository.countCompletedByForm(sid)).thenReturn(0L);
+        when(sessionRepository.countInProgressByForm(sid)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, true)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, false)).thenReturn(0L);
+        when(questionRepository.findByFormIdOrderByDisplayOrderAsc(sid)).thenReturn(List.of(q));
+        when(questionScaleMvRepo.findDistributionsByQuestionIds(anyCollection())).thenReturn(Map.of());
+        when(questionChoiceMvRepo.findDistributionsByQuestionIds(anyCollection())).thenReturn(Map.of());
+        when(questionRatingMvRepo.findStatsByQuestionIds(anyCollection())).thenReturn(Map.of());
+
+        SurveyReportDto result = service.getSurveyReport(sid);
+
+        // Privacy threshold not met (0 < threshold) → choiceDistribution is empty, no divide-by-zero
+        assertThat(result.questionBreakdowns().get(0).privacyThresholdMet()).isFalse();
+        assertThat(result.questionBreakdowns().get(0).choiceDistribution()).isEmpty();
+    }
+
+    @Test
     void getSurveyReport_questionBreakdown_rating_aboveThreshold_usesMvBatch() {
         UUID sid = UUID.randomUUID();
         UUID qid = UUID.randomUUID();
@@ -628,5 +697,114 @@ class AnalyticsServiceTest {
         assertThat(bd.completedSessions()).isEqualTo(15L); // 10 + 5
         assertThat(bd.inProgressSessions()).isEqualTo(3L); // 2 + 1
         assertThat(bd.completionRate()).isCloseTo(75.0, within(0.01)); // 15/20 * 100
+    }
+
+    // -----------------------------------------------------------------------
+    // Participation/completion rate correctness: numerator = distinct users
+    // -----------------------------------------------------------------------
+
+    /**
+     * A user who completed a form twice produces 2 sessions. The completion rate
+     * must use distinct respondent users as the numerator, not raw session count,
+     * to prevent rates exceeding 100%.
+     */
+    @Test
+    void getSurveyReport_completionRate_usesDistinctRespondentUsersNotSessions() {
+        UUID sid = UUID.randomUUID();
+        Form form = Form.builder().id(sid).title("Survey").build();
+        when(formRepository.findById(sid)).thenReturn(Optional.of(form));
+
+        // 2 sessions from a single user who completed twice.
+        when(assignmentRepository.findByFormIdAndActiveTrue(sid)).thenReturn(List.of());
+        when(sessionRepository.countCompletedByForm(sid)).thenReturn(2L);
+        when(sessionRepository.countInProgressByForm(sid)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, true)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, false)).thenReturn(2L);
+        // Only 1 distinct respondent user (same user completed twice).
+        when(sessionRepository.countDistinctRespondentUsersByForm(sid)).thenReturn(1L);
+        when(questionRepository.findByFormIdOrderByDisplayOrderAsc(sid)).thenReturn(List.of());
+
+        // totalEligibleUsers = 0 (no assignments) → completionRate = 0 (denominator guard).
+        // Use a manual assignment to have a non-zero eligible denominator.
+        // Re-run with one individual user assignment for a meaningful rate assertion.
+        SurveyReportDto result = service.getSurveyReport(sid);
+
+        // With 0 eligible (no assignments), rate = 0.0 regardless.
+        assertThat(result.completionRate()).isEqualTo(0.0);
+        assertThat(result.completedSessions()).isEqualTo(2L); // raw session count preserved
+        assertThat(result.identifiedSessions()).isEqualTo(2L);
+    }
+
+    /**
+     * Given 1 eligible user, 2 completed sessions (user completed twice):
+     * completionRate must be 100.0 (1 distinct user / 1 eligible), NOT 200%.
+     */
+    @Test
+    void getSurveyReport_completionRate_cappedAt100_whenUserCompletedTwice() {
+        UUID sid = UUID.randomUUID();
+        Form form = Form.builder().id(sid).title("Survey").build();
+        User assignedUser = User.builder().id(UUID.randomUUID()).email("u@test.com").azureAdId("az").build();
+
+        FormAssignment sa = Mockito.mock(FormAssignment.class);
+        when(sa.getUser()).thenReturn(assignedUser);
+
+        when(formRepository.findById(sid)).thenReturn(Optional.of(form));
+        when(assignmentRepository.findByFormIdAndActiveTrue(sid)).thenReturn(List.of(sa));
+        when(sessionRepository.countCompletedByForm(sid)).thenReturn(2L);
+        when(sessionRepository.countInProgressByForm(sid)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, true)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, false)).thenReturn(2L);
+        // 1 distinct respondent user (completed twice).
+        when(sessionRepository.countDistinctRespondentUsersByForm(sid)).thenReturn(1L);
+        when(questionRepository.findByFormIdOrderByDisplayOrderAsc(sid)).thenReturn(List.of());
+        when(formOrgSessionCountsMvRepo.findCountsByFormId(sid)).thenReturn(Map.of());
+        // Per-user MV: 2 completed sessions, 0 in-progress.
+        when(formSessionCountsMvRepo.findCounts(sid, assignedUser.getId())).thenReturn(new long[]{2L, 0L});
+
+        SurveyReportDto result = service.getSurveyReport(sid);
+
+        // totalEligibleUsers = 1 (one individual assignment).
+        // distinctRespondentUsers = 1. completionRate = 1/1 * 100 = 100.0 (NOT 200%).
+        assertThat(result.completionRate()).isEqualTo(100.0);
+        assertThat(result.completionRate()).isLessThanOrEqualTo(100.0);
+        // Raw completed session count is still preserved for display.
+        assertThat(result.completedSessions()).isEqualTo(2L);
+    }
+
+    /**
+     * The per-assignment completionRate is also capped at 100.0.
+     * When a user has 3 completed sessions but eligible=1, rate must be 100, not 300.
+     */
+    @Test
+    void getSurveyReport_assignmentBreakdown_rateIsCappedAt100() {
+        UUID sid = UUID.randomUUID();
+        Form form = Form.builder().id(sid).title("Survey").build();
+        User assignedUser = User.builder().id(UUID.randomUUID()).email("u@test.com").azureAdId("az").build();
+
+        FormAssignment sa = Mockito.mock(FormAssignment.class);
+        when(sa.getId()).thenReturn(UUID.randomUUID());
+        when(sa.getUser()).thenReturn(assignedUser);
+
+        when(formRepository.findById(sid)).thenReturn(Optional.of(form));
+        when(assignmentRepository.findByFormIdAndActiveTrue(sid)).thenReturn(List.of(sa));
+        when(sessionRepository.countCompletedByForm(sid)).thenReturn(3L);
+        when(sessionRepository.countInProgressByForm(sid)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, true)).thenReturn(0L);
+        when(sessionRepository.countCompletedByFormAndAnonymous(sid, false)).thenReturn(3L);
+        when(sessionRepository.countDistinctRespondentUsersByForm(sid)).thenReturn(1L);
+        when(questionRepository.findByFormIdOrderByDisplayOrderAsc(sid)).thenReturn(List.of());
+        when(formOrgSessionCountsMvRepo.findCountsByFormId(sid)).thenReturn(Map.of());
+        // Per-user MV: 3 completed sessions (user completed 3 times).
+        when(formSessionCountsMvRepo.findCounts(sid, assignedUser.getId())).thenReturn(new long[]{3L, 0L});
+
+        SurveyReportDto result = service.getSurveyReport(sid);
+
+        assertThat(result.assignmentBreakdowns()).hasSize(1);
+        var bd = result.assignmentBreakdowns().get(0);
+        assertThat(bd.eligibleUsers()).isEqualTo(1L);
+        assertThat(bd.completedSessions()).isEqualTo(3L); // raw sessions preserved
+        // Rate = min(100.0, 3/1 * 100) = 100.0 (was 300% before fix).
+        assertThat(bd.completionRate()).isEqualTo(100.0);
+        assertThat(bd.completionRate()).isLessThanOrEqualTo(100.0);
     }
 }

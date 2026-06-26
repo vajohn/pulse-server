@@ -400,4 +400,24 @@ public interface AnswerScaleRepository extends JpaRepository<AnswerScale, UUID> 
                                                 @Param("exactOnly") boolean exactOnly,
                                                 @Param("since") LocalDateTime since,
                                                 @Param("until") LocalDateTime until);
+
+    /**
+     * Distinct respondent <em>user</em> IDs (SCALE source) over scope+window.
+     * Used as the participation-rate numerator (distinct users, not sessions) so a user
+     * who completed a form twice is counted once — preventing participation &gt; 100%.
+     */
+    @Query("SELECT DISTINCT rs.user.id FROM AnswerScale a " +
+           "JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND a.maxValue > a.minValue " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until")
+    List<UUID> findRespondentUserIdsInWindow(@Param("pathFilter") String pathFilter,
+                                             @Param("exactOnly") boolean exactOnly,
+                                             @Param("since") LocalDateTime since,
+                                             @Param("until") LocalDateTime until);
 }

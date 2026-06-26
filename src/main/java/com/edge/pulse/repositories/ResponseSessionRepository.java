@@ -144,4 +144,23 @@ public interface ResponseSessionRepository extends JpaRepository<ResponseSession
            "AND rs.completedAt >= :since")
     long countAllCompletedIdentifiedFiltered(@Param("pathFilter") String pathFilter,
                                              @Param("since") LocalDateTime since);
+
+    /**
+     * Distinct identified respondent <em>users</em> for a form (global scope).
+     * Used as the participation-rate numerator so a user who completed the form
+     * more than once is counted once — preventing completionRate &gt; 100%.
+     */
+    @Query("SELECT COUNT(DISTINCT rs.user.id) FROM ResponseSession rs " +
+           "WHERE rs.form.id = :fid AND rs.completedAt IS NOT NULL AND rs.isAnonymous = false")
+    long countDistinctRespondentUsersByForm(@Param("fid") UUID formId);
+
+    /**
+     * Distinct identified respondent <em>users</em> for a form within an org-unit subtree.
+     * Same purpose as {@link #countDistinctRespondentUsersByForm} but path-scoped.
+     */
+    @Query("SELECT COUNT(DISTINCT rs.user.id) FROM ResponseSession rs " +
+           "WHERE rs.form.id = :fid AND rs.completedAt IS NOT NULL " +
+           "AND (rs.user.orgUnit.path = :pathPrefix OR rs.user.orgUnit.path LIKE CONCAT(:pathPrefix, '/%'))")
+    long countDistinctRespondentUsersByFormAndPath(@Param("fid") UUID formId,
+                                                   @Param("pathPrefix") String pathPrefix);
 }

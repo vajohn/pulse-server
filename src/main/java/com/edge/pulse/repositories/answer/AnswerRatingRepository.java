@@ -109,4 +109,25 @@ public interface AnswerRatingRepository extends JpaRepository<AnswerRating, UUID
                                                  @Param("exactOnly") boolean exactOnly,
                                                  @Param("since") LocalDateTime since,
                                                  @Param("until") LocalDateTime until);
+
+    /**
+     * Per-submission [formTitle, sessionId (UUID), userId (UUID), avgStars (double), maxStars (int)]
+     * within scope+window. The extra {@code userId} column allows the service to build a
+     * distinct-user set (participation-rate numerator) alongside the session set (k-anonymity gate).
+     */
+    @Query("SELECT sub.question.form.title, rs.id, rs.user.id, AVG(CAST(a.stars AS double)), MAX(a.maxStars) " +
+           "FROM AnswerRating a JOIN a.submission sub JOIN sub.session rs " +
+           "WHERE sub.isCurrent = true " +
+           "AND rs.completedAt IS NOT NULL " +
+           "AND rs.user IS NOT NULL AND rs.user.orgUnit IS NOT NULL " +
+           "AND sub.question.form.formType = com.edge.pulse.data.enums.FormType.SURVEY " +
+           "AND (:pathFilter IS NULL " +
+           "     OR rs.user.orgUnit.path = :pathFilter " +
+           "     OR (:exactOnly = false AND rs.user.orgUnit.path LIKE CONCAT(:pathFilter, '/%'))) " +
+           "AND rs.completedAt >= :since AND rs.completedAt < :until " +
+           "GROUP BY sub.id, sub.question.form.title, rs.id, rs.user.id")
+    List<Object[]> findSubmissionRatingsWithUserInWindow(@Param("pathFilter") String pathFilter,
+                                                         @Param("exactOnly") boolean exactOnly,
+                                                         @Param("since") LocalDateTime since,
+                                                         @Param("until") LocalDateTime until);
 }
