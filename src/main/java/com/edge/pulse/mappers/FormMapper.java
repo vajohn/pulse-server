@@ -71,11 +71,12 @@ public class FormMapper {
     }
 
     public CandidateAnswerDto toCandidateDto(CandidateAnswer entity) {
-        return new CandidateAnswerDto(
-                entity.getId(),
-                entity.getLabel(),
-                entity.getLabelAr(),
-                entity.getDisplayOrder()
-        );
+        return toCandidateAnswerDto(entity);
+    }
+
+    /** Read-path factory: maps an option entity to its DTO with resolved image URLs. */
+    public static CandidateAnswerDto toCandidateAnswerDto(CandidateAnswer ca) {
+        return CandidateAnswerDto.of(ca.getId(), ca.getLabel(), ca.getLabelAr(),
+                ca.getDisplayOrder(), ca.getImageAssetId(), ca.getImageAssetIdAr());
     }
 }

@@ -58,7 +58,7 @@ class AssessmentImporterRestrictedTest {
     private static QuestionDto scaleQuestionDto(UUID qId, UUID optId) {
         return new QuestionDto(qId, "Stmt", "بيان", QuestionType.SCALE, 0,
                 null, null,
-                List.of(new CandidateAnswerDto(optId, "A", "أ", 0)),
+                List.of(CandidateAnswerDto.of(optId, "A", "أ", 0, null, null)),
                 null, null, false, null, null, null, null, null, null, null);
     }
 

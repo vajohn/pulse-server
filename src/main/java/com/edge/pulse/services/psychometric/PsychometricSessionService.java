@@ -279,7 +279,8 @@ public class PsychometricSessionService {
         List<CandidateAnswerDto> choices = q.getCandidateAnswers() == null
                 ? List.of()
                 : q.getCandidateAnswers().stream()
-                        .map(ca -> new CandidateAnswerDto(ca.getId(), ca.getLabel(), ca.getLabelAr(), ca.getDisplayOrder()))
+                        .map(ca -> CandidateAnswerDto.of(ca.getId(), ca.getLabel(), ca.getLabelAr(), ca.getDisplayOrder(),
+                                ca.getImageAssetId(), ca.getImageAssetIdAr()))
                         .toList();
 
         com.edge.pulse.data.enums.QuestionType type = q.getQuestionType();

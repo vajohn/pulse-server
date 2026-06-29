@@ -63,15 +63,15 @@ class AssessmentImporterTest {
     private static QuestionDto questionDto(UUID qId, UUID optId1, UUID optId2) {
         return new QuestionDto(qId, "Stmt", "بيان", QuestionType.CHOICE_SINGLE, 0,
                 null, null,
-                List.of(new CandidateAnswerDto(optId1, "A", "أ", 0),
-                        new CandidateAnswerDto(optId2, "B", "ب", 1)),
+                List.of(CandidateAnswerDto.of(optId1, "A", "أ", 0, null, null),
+                        CandidateAnswerDto.of(optId2, "B", "ب", 1, null, null)),
                 null, null, false, null, null, null, null, null, null, null);
     }
 
     private static QuestionDto questionDtoSingleOpt(UUID qId, UUID optId) {
         return new QuestionDto(qId, "Stmt", "بيان", QuestionType.SCALE, 0,
                 null, null,
-                List.of(new CandidateAnswerDto(optId, "A", "أ", 0)),
+                List.of(CandidateAnswerDto.of(optId, "A", "أ", 0, null, null)),
                 null, null, false, null, null, null, null, null, null, null);
     }
 

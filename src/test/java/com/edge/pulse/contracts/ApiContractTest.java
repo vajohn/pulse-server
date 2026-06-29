@@ -516,7 +516,7 @@ class ApiContractTest {
     @Test
     void psychometricQuestionDto_choice_nullableScaleFields_serializedAsNull() throws Exception {
         // CHOICE questions have null scale fields — Flutter reads them as int?/String?
-        CandidateAnswerDto answer = new CandidateAnswerDto(UUID.randomUUID(), "Option A", null, 1);
+        CandidateAnswerDto answer = CandidateAnswerDto.of(UUID.randomUUID(), "Option A", null, 1, null, null);
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
                 UUID.randomUUID(), "Which best describes you?", null, "CHOICE", 2,
                 null, null, null, null, List.of(answer),
@@ -544,8 +544,8 @@ class ApiContractTest {
 
     @Test
     void psychometricQuestionDto_choiceMultiple_serializes_allowMultipleSelect_true() throws Exception {
-        CandidateAnswerDto a1 = new CandidateAnswerDto(UUID.randomUUID(), "Option A", null, 1);
-        CandidateAnswerDto a2 = new CandidateAnswerDto(UUID.randomUUID(), "Option B", null, 2);
+        CandidateAnswerDto a1 = CandidateAnswerDto.of(UUID.randomUUID(), "Option A", null, 1, null, null);
+        CandidateAnswerDto a2 = CandidateAnswerDto.of(UUID.randomUUID(), "Option B", null, 2, null, null);
         PsychometricQuestionDto dto = new PsychometricQuestionDto(
                 UUID.randomUUID(), "Select all correct answers.", null, "CHOICE_MULTIPLE", 1,
                 null, null, null, null, List.of(a1, a2),
@@ -1230,7 +1230,7 @@ class ApiContractTest {
 
     @Test
     void questionDto_arFields_presentWhenNotNull() throws Exception {
-        var candidateAnswerDto = new CandidateAnswerDto(UUID.randomUUID(), "Yes", "نعم", 0);
+        var candidateAnswerDto = CandidateAnswerDto.of(UUID.randomUUID(), "Yes", "نعم", 0, null, null);
         var dto = new QuestionDto(
                 UUID.randomUUID(), "Hello world", "مرحبا بالعالم",
                 com.edge.pulse.data.enums.QuestionType.SCALE,

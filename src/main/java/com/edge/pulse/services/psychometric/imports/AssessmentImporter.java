@@ -118,7 +118,7 @@ public class AssessmentImporter {
                 // tag for OPTION_TAGGED_TALLY (VIP); options currently import with tag_scale_id=NULL so VIP
                 // scores nothing until wired.
                 List<CandidateAnswerDto> opts = q.options().stream()
-                        .map(o -> new CandidateAnswerDto(null, o.labelEn(), o.labelAr(), o.displayOrder()))
+                        .map(o -> CandidateAnswerDto.of(null, o.labelEn(), o.labelAr(), o.displayOrder(), null, null))
                         .toList();
                 req = new AddQuestionRequest(
                         bodyEn, bodyAr, qType,
