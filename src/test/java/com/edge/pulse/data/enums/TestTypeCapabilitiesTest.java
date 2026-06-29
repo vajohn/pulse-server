@@ -32,6 +32,9 @@ class TestTypeCapabilitiesTest {
         assertThat(p.measures).isEqualTo(Measures.TYPICAL);
         assertThat(p.timeLimitVisible).isFalse();
         assertThat(p.allowedQuestionTypes).contains(QuestionType.SCALE, QuestionType.FORCED_CHOICE);
+        // Binary forced-choice instruments (e.g. ATP) import as 2-option CHOICE_SINGLE items,
+        // scored by the BINARY_FORCED_CHOICE strategy — so personality permits CHOICE_SINGLE.
+        assertThat(p.allowedQuestionTypes).contains(QuestionType.CHOICE_SINGLE);
         assertThat(p.exampleInstruments).contains("Big Five", "Adaptive Traits Profiler", "PTI Plus");
     }
 

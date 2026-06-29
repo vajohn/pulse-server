@@ -540,7 +540,7 @@ class PsychometricAdminServiceTest {
 
         com.edge.pulse.data.dto.AddQuestionRequest req =
                 org.mockito.Mockito.mock(com.edge.pulse.data.dto.AddQuestionRequest.class);
-        when(req.questionType()).thenReturn(com.edge.pulse.data.enums.QuestionType.CHOICE_SINGLE); // not allowed for PERSONALITY
+        when(req.questionType()).thenReturn(com.edge.pulse.data.enums.QuestionType.CHOICE_MULTIPLE); // not allowed for PERSONALITY (CHOICE_SINGLE now is, for binary forced-choice)
 
         org.springframework.web.server.ResponseStatusException ex =
                 org.junit.jupiter.api.Assertions.assertThrows(

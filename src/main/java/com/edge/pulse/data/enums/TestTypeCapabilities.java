@@ -35,7 +35,13 @@ public enum TestTypeCapabilities {
             List.of("Big Five", "Adaptive Traits Profiler", "PTI Plus", "Vocational Interests (VIP)"),
             false,
             false,
-            Set.of(QuestionType.SCALE, QuestionType.ADJECTIVE_CHECKLIST, QuestionType.FORCED_CHOICE)
+            // CHOICE_SINGLE is permitted so binary forced-choice instruments (e.g. the Adaptive
+            // Traits Profiler) can be imported: each item is a 2-option choice between two
+            // statements, scored by the BINARY_FORCED_CHOICE strategy from the selected option's
+            // ordinal. CHOICE_SINGLE carries no "correct answer" by itself (keying lives in the
+            // scoring key), so it stays consistent with a no-right/wrong personality test.
+            Set.of(QuestionType.SCALE, QuestionType.ADJECTIVE_CHECKLIST, QuestionType.FORCED_CHOICE,
+                    QuestionType.CHOICE_SINGLE)
     ),
     /**
      * Competency scores are <em>derived</em> from other tests' scales (a weighted mean of

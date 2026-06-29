@@ -22,8 +22,8 @@ Each folder is one assessment. A package is **3 CSVs** (+ an **image ZIP** for p
 | `attention-to-detail/` | Cognitive | ✓ | ✓ | ✅ |
 | `verbal-reasoning/` | Cognitive | ✓ | – | ✅ |
 | `numerical-reasoning/` | Cognitive | ✓ | – | ✅ |
+| `adaptive-traits-profiler/` | Personality | – | – | ✅ (binary forced-choice) |
 | `logical-reasoning/` | Cognitive | ✓ | ✓ | ⚠️ see *Known limitations* |
-| `adaptive-traits-profiler/` | Personality | – | – | ⚠️ see *Known limitations* |
 
 ---
 
@@ -104,14 +104,14 @@ Pulse computes it as a reverse-aware weighted mean of their STENs.
   `images.zip` is refused on the first missing image. To demo LR end-to-end, obtain the complete LR
   image set from Beacon Red (filenames must match the markdown refs in `questions.csv`), or demo the
   picture flow with **Attention to Detail** (complete).
-- **Adaptive Traits Profiler** — ATP is a *binary forced-choice* personality instrument. The importer
-  currently maps forced-choice items to a single-choice question type, which the platform disallows on
-  a personality test, so ATP question-import is blocked pending forced-choice import support. Its
-  scoring is validated; only the question-import step is pending. (PTI Plus is the working personality
-  demo.)
+**Clean demo set today:** PTI Plus + Adaptive Traits Profiler (personality) + Attention to Detail
+(picture cognitive) + Verbal & Numerical Reasoning (text cognitive) — five of the six import cleanly.
 
-**Clean demo set today:** PTI Plus (personality) + Attention to Detail (picture cognitive) + Verbal &
-Numerical Reasoning (text cognitive).
+> **Note on ATP (binary forced-choice):** each ATP item is a 2-option choice between two statements,
+> imported as a `CHOICE_SINGLE` question and scored by the `BINARY_FORCED_CHOICE` strategy from the
+> chosen option's ordinal (personality tests now permit `CHOICE_SINGLE` for exactly this). The
+> dedicated `FORCED_CHOICE` question *type* (a styled "which statement is more like you?" UI) has a
+> separate, not-yet-wired answer→scoring path and is intentionally not used here.
 
 ---
 
