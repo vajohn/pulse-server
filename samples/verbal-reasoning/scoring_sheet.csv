@@ -1,0 +1,17 @@
+rowType,name,parentName,scoreMethod,normStrategy,mean,sd,tFactor,tOffset,tClipLo,tClipHi,compositeMethod,compositeBasis,childScales,roundingScale,restricted,questionHeader,scaleName,direction,itemStrategy,weight
+scale,verbal_reasoning_sum,,SUM,PARAMETRIC,10.85,3.31,15,100,40,160,,,,,false,,,,,
+item,,,,,,,,,,,,,,,,Q1,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q2,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q3,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q4,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q5,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q6,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q7,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q8,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q9,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q10,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q11,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q12,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q13,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q14,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q15,verbal_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1

@@ -1,0 +1,17 @@
+rowType,name,parentName,scoreMethod,normStrategy,mean,sd,tFactor,tOffset,tClipLo,tClipHi,compositeMethod,compositeBasis,childScales,roundingScale,restricted,questionHeader,scaleName,direction,itemStrategy,weight
+scale,numerical_reasoning_sum,,SUM,PARAMETRIC,11.45,2.74,15,100,40,160,,,,,false,,,,,
+item,,,,,,,,,,,,,,,,Q1,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q2,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q3,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q4,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q5,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q6,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q7,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q8,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q9,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q10,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q11,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q12,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q13,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q14,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q15,numerical_reasoning_sum,FORWARD,ANSWER_KEY_SINGLE,1

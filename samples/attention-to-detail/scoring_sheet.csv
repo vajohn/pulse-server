@@ -1,0 +1,17 @@
+rowType,name,parentName,scoreMethod,normStrategy,mean,sd,tFactor,tOffset,tClipLo,tClipHi,compositeMethod,compositeBasis,childScales,roundingScale,restricted,questionHeader,scaleName,direction,itemStrategy,weight
+scale,attention_to_detail_sum,,SUM,PARAMETRIC,12.52,2.38,15,100,40,160,,,,,false,,,,,
+item,,,,,,,,,,,,,,,,Q1,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q2,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q3,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q4,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q5,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q6,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q7,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q8,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q9,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q10,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q11,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q12,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q13,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q14,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1
+item,,,,,,,,,,,,,,,,Q15,attention_to_detail_sum,FORWARD,ANSWER_KEY_SINGLE,1

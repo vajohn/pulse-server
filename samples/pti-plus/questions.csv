@@ -1,0 +1,179 @@
+header,questionEN,questionAR,answerEN1,answerAR1,value1,answerEN2,answerAR2,value2,answerEN3,answerAR3,value3,answerEN4,answerAR4,value4
+Q1,I enjoy large social gatherings.,أستمتع بالتجمعات الاجتماعية الكبيرة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q2,"Right now, I feel in control of my life.",في الوقت الحالي، أشعر بأن لدي سيطرة على حياتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q3,It's easy for me to turn a goal into an action plan.,من السهل علي إعداد خطة عمل لتحقيق هدف معين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q4,I hate last-minute changes to my plans.,أكره حدوث تغييرات في اللحظة الأخيرة على خططي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q5,I am a very confident person.,أنا شخص ذو ثقة عالية بالنفس.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q6,I can control my emotions.,يمكنني التحكم بمشاعري.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q7,I rarely start conversations with others.,نادراً ما أبدأ المحادثات مع الآخرين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q8,"I always get things done, no matter the time and effort it takes.",أقوم دائما بإنجاز المهام، بغض النظر عن الوقت والجهد الذي يتطلبه الأمر.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q9,I don't perform well when being evaluated.,لا أقدم أداء جيداً عندما يتم تقييمي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q10,I can easily handle anyone who tries to challenge me.,يمكنني بسهولة التعامل مع من يريد أن يتحداني.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q11,My accomplishments are entirely due to my own efforts.,جميع إنجازاتي ناتجة بالكامل عن مجهودي الخاص.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q12,"If someone asks me, I can offer advice on how to achieve what they want.",إن استشارني شخص ما، يمكنني تقديم النصيحة لمساعدته في تحقيق ما يريد.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q13,I am full of energy all the time.,أنا مفعم بالطاقة طوال الوقت.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q14,I don't make good judgements in unfamiliar situations.,لا أصدر أحكاما جيدة في المواقف غير المألوفة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q15,I am fully confident in my knowledge.,أنا واثق تماماً من معرفتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q16,"I only show emotions, which I want people to see.",أقوم فقط بإظهار المشاعر التي أود أن يراها الناس.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q17,I've worked extra hours to make sure my assignments are completed.,في السابق، عملت ساعات إضافية للتأكد من إتمام مهامي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q18,I feel like any exam will just show how little I know.,أشعر بأن أي اختبار سيظهر مدى قلّة معرفتي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q19,I forget to return things now and then.,أنسى أن أعيد الأشياء بين الحين والآخر.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q20,I can convince someone I'm right even when I'm not.,يمكنني إقناع شخص ما بأنني على حق حتى عندما لا أكون كذلك.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q21,I don't need reassurance for my work.,لست بحاجة إلى الطمأنة بشأن أدائي في العمل.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q22,I often visualize the steps I need to take to become more successful.,أتخيل في أغلب الأحيان تلك الخطوات التي يجب اتخاذها لأكون أكثر نجاحاً.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q23,I love trying new things.,أحب تجربة الأشياء الجديدة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q24,"I could perform better in many areas, but I lack confidence.",يمكنني تقديم أداء أفضل في العديد من المجالات، ولكنني أفتقر إلى الثقة بالنفس.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q25,I feel rested in the mornings.,أشعر بالراحة في الصباح.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q26,It takes a lot to provoke me.,لا تتم إثارة استفزازي بسهولة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q27,I always do my best even for ordinary tasks.,دائماً ما أقدم أفضل أداء لدي حتى في المهام العادية.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q28,Every challenge is a chance to impress others with your skills.,كل تحد هو فرصة لإبهار الآخرين بمهاراتك.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q29,I can defend my opinion even in front of more experienced people.,يمكنني الدفاع عن رأيي حتى عند التعامل مع أشخاص أكثر خبرة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q30,I often feel that things are slipping out of my control.,أشعر غالبًا بأن الأمور تخرج عن سيطرتي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q31,I often picture my future achievements.,كثيراً ما أتخيل إنجازاتي المستقبلية.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q32,I like to stick to a plan throughout the day.,أحب الالتزام بخطة طوال اليوم.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q33,I often hesitate to share my ideas because others might ignore them.,كثيراً ما أتردد في مشاركة أفكاري لأن الآخرين قد يتجاهلونها.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q34,I am not easily annoyed.,لا أشعر بالانزعاج بسهولة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q35,I tend to give up when faced with many difficulties.,أميل إلى الاستسلام عند مواجهة العديد من الصعوبات.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q36,I find it hard to start when I have too many tasks.,أجد صعوبة في البدء عندما تكون لدي مهام كثيرة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q37,Just the thought of taking an exam makes me anxious.,أشعر بالقلق لمجرد التفكير في إجراء اختبار ما.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q38,I enjoy talks where I can express my views on something.,أستمتع بالمحادثات التي يمكنني فيها التعبير عن آرائي حول شيء ما.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q39,I can always squeeze in one more task in my daily work.,يمكنني دائماً إيجاد الوقت للقيام بمهمة إضافية أثناء عملي اليومي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q40,"Right now, I don't have a clear vision of my future.",في الوقت الحالي، ليس لدي رؤية واضحة لمستقبلي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q41,Dealing with changes is really stressful.,التعامل مع التغييرات أمر مرهق جداً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q42,I feel comfortable to discuss topics I'm not very familiar with.,أشعر بأنه من السهل علي مناقشة المواضيع التي لست على دراية بها.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q43,I can appear calm despite feeling anxious inside.,يمكنني أن أبدو هادئا على الرغم من شعوري بالقلق من الداخل.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q44,I don't stop working on something until I am satisfied with the result.,لا أتوقف عن العمل على شيء ما حتى أشعر بالرضا عن النتيجة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q45,"When things don't work, I quickly move forward.",عندما لا تنجح الأمور، أستطيع تخطي ذلك بسرعة والمضي قدماً.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q46,I enjoy every opportunity to present my ideas to other people.,أستمتع بكل فرصة لعرض أفكاري على الآخرين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q47,I try to avoid situations that will make me feel overwhelmed.,أحاول تجنّب المواقف التي قد تجعلني أشعر بالإرهاق أو الضغط.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q48,I never stick to an exact plan during the day.,لا ألتزم أبداً بخطة محددة خلال اليوم.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q49,I need help to set goals for myself.,أحتاج إلى المساعدة لتحديد أهدافي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q50,Getting last-minute tasks often ends in disaster.,في الغالب، تحصل كارثة للمهام التي تأتي في آخر لحظة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q51,I enjoy participating in debates even if I'm not fully prepared on the subject.,أستمتع بالمشاركة في النقاشات حتى لو لم أكن مستعداً بشكل كامل للموضوع.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q52,"If someone tries to annoy me, I usually ignore them.",إذا حاول شخص ما إزعاجي، أقوم بتجاهله.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q53,Doing a good job gives me a sense of satisfaction.,تقديم أداء جيد في عملي يمنحني شعوراً بالرضى.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q54,I feel like a loser when I make a mistake.,أشعر بالفشل عند ارتكابي أي خطأ.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q55,I would be good at handling customer complaints.,أرى أن لدي قدرة جيدة في التعامل مع شكاوى العملاء.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q56,People think I am good in time management.,يعتقد الآخرون بأنني جيد في إدارة الوقت.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q57,Setting concrete objectives to follow can be challenging for me.,قد أواجه صعوبة في اختيار أهداف ملموسة يجب علي تحقيقها.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q58,I'm usually enthusiastic about changes in my life.,في العادة، أكون متحمسًا للتغييرات في حياتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q59,I doubt my abilities even in tasks where I have experience.,أشك في قدراتي حتى في المهام التي لدي خبرة فيها.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q60,I don't hold it back if someone tries to provoke me.,لا أتمالك نفسي إذا حاول شخص استفزازي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q61,I am the first to respond when someone gives us a task.,أنا أول من يستجيب عندما يتم تكليفنا بمهمة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q62,I prefer to avoid situations in which I've had bad experiences.,أفضل تجنب المواقف التي انتهت سابقاً بتجارب سيئة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q63,Others often rely on me to handle difficult people.,في الغالب، يعتمد الآخرون على للتعامل مع الأشخاص الذين يصعب التعامل معهم.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q64,Something always happens when I try to follow a specific plan.,تحدث مشكلة دائماً عندما أحاول اتباع خطة محددة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q65,"I enjoy planning things, even if I don't follow through with them in the end.",أستمتع بالتخطيط للأمور، حتى لو لم أتبعها في النهاية.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q66,I always welcome new experiences.,أرحب دائما بالتجارب الجديدة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q67,I often feel that others know more than I do.,في الغالب، أشعر أن الآخرين يعرفون أكثر مني.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q68,I can't focus well when I'm under pressure.,لا أستطيع التركيز جيدًا عندما أكون تحت الضغط.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q69,It is not appropriate to reveal your emotional state to others.,ليس من المناسب أن تكشف عن حالتك العاطفية أمام الآخرين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q70,I'm 100% involved even in less important responsibilities.,أنا اشارك بشكل كامل حتى في المسؤوليات الأقل أهمية.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q71,I've quit doing things I like because of a negative experience.,سبق وأن توقفت عن القيام بأشياء أحبها بسبب تجربة سلبية.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q72,I feel comfortable to talk with all types of people.,أشعر بالراحة عند الحديث مع مختلف الأشخاص.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q73,"I can handle additional tasks, even when I'm already overloaded.",يمكنني التعامل مع مهام إضافية حتى عندما أكون مثقلًا بالعمل.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q74,I often imagine what I might become in the future.,كثيراً ما أتخيل كيف سأكون في المستقبل.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q75,I like having a well-structured and predictable day.,أحب أن يكون لدي يوم منظم بشكل جيد ويمكن التنبؤ به.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q76,I always expect that people will criticize what I say.,أتوقع دائماً أن ينتقد الناس ما أقول.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q77,I only display my emotions to my closest friends and family.,أظهر مشاعري فقط لأقرب أصدقائي وعائلتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q78,Others say I'm a perfectionist.,يقول الآخرون أنني أسعى لتحقيق الكمال.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q79,Failures really discourage me.,الفشل يثبطني كثيراً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q80,"I tend to give up when challenged, to avoid feeling embarrassed.",أميل إلى الاستسلام عند مواجهة التحديات لتجنب الشعور بالحرج.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q81,I owe my success to my own abilities and skills.,نجاحي هو نتيجة قدراتي ومهاراتي الخاصة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q82,"Every morning, I imagine what my day will look like.",أتخيل كل صباح كيف سيبدو يومي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q83,I'm not a fan of unexpected surprises.,أنا لست من محبي المفاجآت غير المتوقعة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q84,I perform better than most people because I believe in myself.,أقدم أداء أفضل من معظم الناس لأنني أؤمن بقدراتي الشخصية.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q85,I'm not very friendly when I'm in a bad mood.,أنا لست ودوداً جداً عندما أكون في مزاج سيء.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q86,I tend to overwork if other team members don't do their part in a project.,أميل إلى العمل أكثر من اللازم إذا لم يقم أعضاء الفريق الآخرون بدورهم في المشروع.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q87,"When I make a mistake, I give myself time to reflect and then move on.",عندما أرتكب خطأ، أعطي نفسي الوقت للتفكير بالأمر ثم أمضي قدماً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q88,I feel uncomfortable in social settings.,أشعر بعدم الارتياح في البيئات الاجتماعية.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q89,I don't perform at my best when deadlines are tight.,لا أؤدي بأفضل صورة عندما تكون المواعيد النهائية ضيقة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q90,I often rely on luck and good fortune.,أعتمد في أغلب الأحيان على الحظ.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q91,I envision myself as a person highly respected by others.,أتصور نفسي كشخص يحظى باحترام كبير من قبل الآخرين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q92,Taking risks excites me.,أشعر بالحماس عند الإقدام على المخاطر.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q93,I typically don't pay much attention to criticism.,لا أولي الكثير من الاهتمام للانتقادات.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q94,I compose myself even in the most stressful situations.,أتمالك نفسي حتى في أصعب المواقف.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q95,I get easily distracted while working on tasks.,أتشتت بسهولة أثناء العمل على المهام.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q96,I use my mistakes as motivation to get better at what I do.,أستخدم أخطائي كحافز لأُحسِّن من أدائي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q97,I get embarrassed easily.,أشعر بالإحراج بسهولة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q98,My failures are mostly a result of misfortune.,في الغالب، تكون إخفاقاتي نتيجة سوء الحظ.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q99,Daily challenges are often too much to handle.,التحديات اليومية غالبًا ما تكون أصعب من أن أتحمّلها.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q100,I know exactly where I want my career to go.,أعرف بالضبط المسار الذي أريد أن أسلكه في مسيرتي المهنية.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q101,"In times of change, the safest choice is usually the best one.",في أوقات التغيير، يكون من الأفضل اختيار الخيار الأكثر أماناً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q102,I can deal with everything I face in life.,يمكنني التعامل مع كل ما أواجهه في الحياة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q103,I am easily affected by the emotions of people around me.,أتأثر بسهولة بمشاعر الناس من حولي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q104,It is difficult to maintain your attention on a single task for a long time.,من الصعب التركيز على مهمة واحدة لفترة طويلة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q105,I relive my failures over and over again.,أفكر في إخفاقاتي مراراً وتكراراً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q106,I am a shy person.,أنا شخص خجول.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q107,I truly believe that I shape my own destiny.,أؤمن حقًا بأنني قادر على تشكيل مستقبلي بنفسي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q108,I can outline the targets by which I can measure my progress.,أستطيع تحديد الأهداف التي يمكنني قياس تقدمي من خلالها.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q109,I am good at managing risk.,أنا جيد في إدارة المخاطر.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q110,People have told me that I am too insecure.,أخبرني الناس إنني غير واثق بنفسي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q111,I restrain my reactions when I'm frustrated.,أتحكم في ردود أفعالي عندما أكون محبطًا.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q112,I find interruptions during work frustrating.,أجد أن المقاطعة أثناء العمل مثيرة للإزعاج.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q113,I can find lessons even in my biggest disappointments.,أستطيع أن أتعلم دروسًا حتى من أكبر خيباتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q114,I avoid talking with people I don't know well.,أتجنب الحديث مع أشخاص لا أعرفهم جيداً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q115,I tend to panic when I'm given an unexpected assignment.,أميل إلى الشعور بالذعر عندما يتم تكليفي بمهمة غير متوقعة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q116,I can't think clearly when sudden problems arise.,لا أستطيع التفكير بوضوح عند مواجهة مشاكل غير متوقعة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q117,I like to have specific milestones and benchmarks to track my progress.,أحب أن يكون لدي إنجازات ومعايير محددة لتتبع تقدمي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q118,I usually choose the least risky option when making decisions.,أقوم عادة بأختار الخيار الأقل خطورة عند اتخاذ القرارات.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q119,I am often the smartest person in the room.,أكون غالباً الشخص الأذكى في الغرفة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q120,I don't think people need to know exactly how I feel.,لا أعتقد أن الناس بحاجة إلى معرفة ما أشعر به بالضبط.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q121,I am more persistent than most people I know.,أنا أكثر إصرارًا من معظم الأشخاص الذين أعرفهم.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q122,"Every day, I take time to reflect on the things that have happened to me.",كل يوم، أخصص وقتًا للتفكير في الأمور التي حدثت لي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q123,I feel awkward being in front of many people.,أشعر بعدم الارتياح عندما أكون أمام العديد من الأشخاص.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q124,I can easily rearrange my schedule if the situation suddenly changes.,يمكنني بسهولة إعادة ترتيب جدولي إذا طرأت تغيرات مفاجأة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q125,People like to share their goals with me because I can suggest a way to achieve them.,يحب الناس مشاركة أهدافهم معي لأنني أستطيع أن اقترح طريقة لتحقيقها.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q126,"If there's a chance things could go wrong, I'd rather not go ahead.",إن كان من المحتمل أن تفشل الخطة، أفضل عدم المضي قدماً.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q127,I catch myself thinking about personal issues during work.,أجد نفسي أفكر في مشاكلي الشخصية أثناء العمل.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q128,I often feel like I'm not able to show how capable I am.,في الغالب، أشعر أنني غير قادر على إظهار مدى كفاءتي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q129,People can easily tell when I'm not feeling well.,عندما أكون لست بحالة جيدة، يمكن للآخرين بسهولة ملاحظة ذلك.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q130,I can stay concentrated for longer than most people.,يمكنني المحافظة على تركيزي لفترة أطول من معظم الناس.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q131,I search for significant meaning in everything throughout the day.,أبحث عن المعنى الأكبر وراء كل شيء على مدار اليوم.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q132,It is very difficult to intimidate me.,من الصعب جداً إخافتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q133,My failures happen because I rely too much on other people.,إخفاقاتي سببها اعتمادي الكبير على الآخرين.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q134,I always visualize what needs to be done to accomplish my goals.,أتصور دائماً ما يجب القيام به لتحقيق أهدافي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q135,Experiences with risk are often stimulating.,غالباً ما تكون التجارب المحفوفة بالمخاطر محفزة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q136,I never question my skills.,لا أشكك أبداً بمهاراتي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q137,I find it difficult to hide my emotions.,أجد صعوبة في إخفاء مشاعري.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q138,I can easily lose control when I'm stressed.,يمكنني أن أفقد السيطرة بسهولة عندما أكون تحت الضغط.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q139,I can continue working long after I feel exhausted.,يمكنني الاستمرار في العمل لفترة طويلة بعد أن أشعر بالإرهاق.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q140,Even negative events can teach you something.,حتى الأحداث السلبية يمكن أن تعلمك شيئاً ما.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q141,I don't hesitate to ask questions if I don't understand something.,لا أتردد في طرح الأسئلة إذا لم أفهم شيئاً ما.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q142,I tend to perform worse when I have too many things to do.,أميل إلى تقديم أداء أسوأ عندما يكون هنالك الكثير من الأشياء التي يجب علي القيام بها.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q143,I often rely on someone to set up the steps to achieve my targets.,في الغالب، أعتمد على شخص آخر لإعداد الخطوات اللازمة لتحقيق أهدافي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q144,A bit of danger makes things more exciting.,قليل من الخطر يجعل الأمور أكثر حماسًا.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q145,I am more capable than the people I know.,لدي قدرات أكثر من قدرات الأشخاص الذين أعرفهم.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q146,Anyone can notice if I'm feeling down.,يمكن لأي شخص أن يلاحظ ما إذا كنت أشعر بالإحباط.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q147,I frequently miss deadlines.,في أغلب الأحيان، أفوت المواعيد النهائية.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q148,You can learn more from your failures than from your successes.,يمكنك أن تتعلم من إخفاقاتك أكثر من نجاحاتك.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q149,I prefer to avoid social situations.,أُفضل تجنب المواقف الاجتماعية.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q150,I would rather search for information myself than ask questions.,أفضل البحث عن المعلومات بنفسي بدلا من طرح الأسئلة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q151,"After all, nothing seems to depend on me.",في النهاية، لا يبدو أن هناك شيئاً يعتمد علي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q152,Everybody makes New Year's resolutions that they don't follow.,يقوم الجميع بوضع قرارات للسنة الجديدة ولكنهم لا يتبعونها.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q153,Taking risks make life more interesting.,الإقدام على المخاطرة يجعل الحياة أكثر إثارة للاهتمام.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q154,I believe I am a very competent person.,أعتقد أنني شخص كفء جدًا.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q155,I am constantly tired during the day.,أشعر بالتعب باستمرار خلال النهار.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q156,I tend to think less and act more when I'm frustrated.,أميل إلى التفكير بشكلٍ أقل والتصرف بشكلٍ أسرع عندما أشعر بالإحباط.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q157,I get bored quickly while doing something.,أشعر بالملل بسرعة أثناء القيام بشيء ما.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q158,Errors show you how to do things better next time.,تعلّمك الأخطاء كيفية القيام بالأمور بشكل أفضل في المرة القادمة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q159,I feel uncomfortable to ask questions in front of other people.,أشعر بعدم الارتياح عند طرح الأسئلة أمام الآخرين.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q160,I often feel like I cannot control what's happening in my life.,أشعر في كثيرٍ من الأحيان بأنني لا أستطيع السيطرة على ما يحدث في حياتي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q161,"I enjoy chatting with others, even if we've just met.",أستمتع بالتحدث مع الآخرين، حتى لو كنا قد تعارفنا للتو.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q162,I can give advice to people on how to have a healthy lifestyle.,أستطيع تقديم نصائح للناس حول كيفية اتباع نمط حياة صحي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q163,"For important choices, I try to ensure there's no risk involved.",عند اتخاذ قرارات مهمة،  أحاول التأكد من عدم وجود أي مخاطر.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q164,I never hesitate to express my opinion.,لا أتردد أبداً في التعبير عن رأيي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q165,"When I am upset, I make an effort to hide it from others.",عندما أكون مستاء، أبذل جهداً لإخفاء ذلك عن الآخرين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q166,I like to mix my main duties with less important activities to avoid boredom.,أحب أن أدمج مهامي الرئيسية مع أنشطة أقل أهمية لتجنب الملل.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q167,I always give back what I've borrowed.,دائمًا أرجع الأشياء اللي أستعرتها.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q168,I try to reflect on everything that comes my way.,أحاول التفكير بكل التجارب التي تحصل معي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q169,I can talk my way out of any trouble.,أستطيع استخدام مهاراتي في الحديث للخروج من أي مشكلة.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q170,I need a lot of encouragement to do well.,أحتاج إلى الكثير من التشجيع للقيام بعمل جيد.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q171,"When I want to accomplish something, I always start by visualizing the results.",عندما أريد تحقيق شيء ما، ابدأ دائما بتصور النتائج.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q172,I frequently wake up during the night.,أستيقظ كثيرًا أثناء الليل.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q173,"When making plans, I always try to predict all potential failures.",عند وضع الخطط، أحاول دائما التنبؤ بجميع الأخطاء المحتملة.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q174,I often think I look incompetent even in my area of expertise.,في أغلب الأحيان، أعتقد أنني أبدو غير كفء حتى في مجال خبرتي.,Strongly disagree,لا أوافق بشدة,4,Disagree,لا أوافق,3,Agree,أوافق,2,Strongly agree,أوافق بشدة,1
+Q175,I always pay attention to my appearance in front of others.,دائما ما انتبه إلى مظهري أمام الآخرين.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q176,People say I often keep going even when it doesn't make sense.,يقول الناس أنني استمر كثيراً في المحاولة حتى عندما يبدو ذلك غير منطقي.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q177,Everything that happens to you is a learning opportunity.,كل ما يحدث لك هو فرصة للتعلم.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
+Q178,I can ask strangers for help without hesitation.,يمكنني أن أطلب المساعدة من الغرباء دون تردد.,Strongly disagree,لا أوافق بشدة,1,Disagree,لا أوافق,2,Agree,أوافق,3,Strongly agree,أوافق بشدة,4
