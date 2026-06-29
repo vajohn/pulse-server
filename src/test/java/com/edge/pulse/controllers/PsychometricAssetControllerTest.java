@@ -5,16 +5,22 @@ import com.edge.pulse.services.psychometric.assets.AssetService;
 import com.edge.pulse.services.psychometric.assets.BlobStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class PsychometricAssetControllerTest {
@@ -54,5 +60,49 @@ class PsychometricAssetControllerTest {
         UUID id = UUID.randomUUID();
         when(assetService.find(id)).thenReturn(Optional.empty());
         mvc.perform(get("/api/psychometric/assets/{id}", id)).andExpect(status().isNotFound());
+    }
+
+    // ── upload (POST) ─────────────────────────────────────────────────────────
+
+    @Test
+    void upload_png_returns201_withUrlAndId() throws Exception {
+        byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile("file", "Q1.png", "image/png", png);
+        when(assetService.store(any(byte[].class), eq("image/png"), eq("Q1.png"), isNull()))
+                .thenReturn(PsychometricAsset.builder()
+                        .id(UUID.fromString("00000000-0000-0000-0000-0000000000aa"))
+                        .sha256("abc").contentType("image/png").byteSize(png.length).build());
+
+        mvc.perform(multipart("/api/psychometric/assets").file(file))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value("00000000-0000-0000-0000-0000000000aa"))
+                .andExpect(jsonPath("$.url").value("/api/psychometric/assets/00000000-0000-0000-0000-0000000000aa"))
+                .andExpect(jsonPath("$.contentType").value("image/png"))
+                .andExpect(jsonPath("$.byteSize").value(png.length));
+    }
+
+    @Test
+    void upload_rejectsNonImageType_415() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "x.txt", "text/plain", new byte[]{1, 2, 3});
+        mvc.perform(multipart("/api/psychometric/assets").file(file))
+                .andExpect(status().isUnsupportedMediaType());
+    }
+
+    @Test
+    void upload_rejectsSpoofedContentType_415() throws Exception {
+        // declares png but bytes are not png
+        MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", new byte[]{0, 0, 0, 0});
+        mvc.perform(multipart("/api/psychometric/assets").file(file))
+                .andExpect(status().isUnsupportedMediaType());
+    }
+
+    @Test
+    void upload_oversize_maps422() throws Exception {
+        byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+        MockMultipartFile file = new MockMultipartFile("file", "big.png", "image/png", png);
+        when(assetService.store(any(), any(), any(), any()))
+                .thenThrow(new IllegalArgumentException("Asset big.png exceeds 5242880 bytes"));
+        mvc.perform(multipart("/api/psychometric/assets").file(file))
+                .andExpect(status().isUnprocessableEntity());
     }
 }
