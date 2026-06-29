@@ -36,6 +36,14 @@ public class CandidateAnswer {
     @Column(name = "label_ar", length = 512)
     private String labelAr;
 
+    /** Optional image for this option (EN/default). NULL = text-only option. */
+    @Column(name = "image_asset_id")
+    private UUID imageAssetId;
+
+    /** Optional Arabic-variant image. NULL = use {@link #imageAssetId} for AR too (if any). */
+    @Column(name = "image_asset_id_ar")
+    private UUID imageAssetIdAr;
+
     /**
      * Display-only flag indicating whether this option is the keyed correct answer for a
      * cognitive item. Intended for admin review UI only.
