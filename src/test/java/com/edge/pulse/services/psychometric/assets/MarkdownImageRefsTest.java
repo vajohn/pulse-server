@@ -28,4 +28,19 @@ class MarkdownImageRefsTest {
         String out = MarkdownImageRefs.rewrite(body, "/api/backend/files/abc.png", "/api/psychometric/assets/123");
         assertThat(out).contains("![Q1.png](/api/psychometric/assets/123)").doesNotContain("backend/files");
     }
+
+    @Test
+    void removeRefStripsTheImageMarkdown() {
+        String body = "Caption ![optA.png](optA.png) end";
+        MarkdownImageRefs.Ref ref = MarkdownImageRefs.extract(body).get(0);
+        String out = MarkdownImageRefs.removeRef(body, ref);
+        assertThat(out).isEqualTo("Caption  end").doesNotContain("![");
+    }
+
+    @Test
+    void removeRefImageOnlyLeavesEmptyAfterTrim() {
+        String body = "![optA.png](optA.png)";
+        MarkdownImageRefs.Ref ref = MarkdownImageRefs.extract(body).get(0);
+        assertThat(MarkdownImageRefs.removeRef(body, ref).trim()).isEqualTo("");
+    }
 }

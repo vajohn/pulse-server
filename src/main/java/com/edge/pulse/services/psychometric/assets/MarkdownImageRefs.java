@@ -37,4 +37,10 @@ public final class MarkdownImageRefs {
         // replace only inside an image ref to avoid accidental matches
         return body.replace("](" + oldUrl + ")", "](" + newUrl + ")");
     }
+
+    /** Removes the matched {@code ![alt](url)} image markdown substring from {@code body}. */
+    public static String removeRef(String body, Ref ref) {
+        if (body == null) return null;
+        return body.replace("![" + ref.alt() + "](" + ref.url() + ")", "");
+    }
 }

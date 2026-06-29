@@ -118,7 +118,12 @@ public class AssessmentImporter {
                 // tag for OPTION_TAGGED_TALLY (VIP); options currently import with tag_scale_id=NULL so VIP
                 // scores nothing until wired.
                 List<CandidateAnswerDto> opts = q.options().stream()
-                        .map(o -> CandidateAnswerDto.of(null, o.labelEn(), o.labelAr(), o.displayOrder(), null, null))
+                        .map(o -> {
+                            OptionImage en = resolveOptionImage(o.labelEn(), imagesByNorm);
+                            OptionImage ar = resolveOptionImage(o.labelAr(), imagesByNorm);
+                            return CandidateAnswerDto.of(null, en.label(), ar.label(), o.displayOrder(),
+                                    en.assetId(), ar.assetId());
+                        })
                         .toList();
                 req = new AddQuestionRequest(
                         bodyEn, bodyAr, qType,
@@ -243,13 +248,44 @@ public class AssessmentImporter {
                 throw new IllegalArgumentException("Image not found for ref: " + ref.alt());
             }
             String locale = ref.alt().toLowerCase().replaceAll("[^a-z0-9]", "").contains("ara") ? "ar" : "en";
-            String altLower = ref.alt().toLowerCase(java.util.Locale.ROOT);
-            String contentType = (altLower.endsWith(".jpg") || altLower.endsWith(".jpeg"))
-                    ? "image/jpeg" : "image/png";
-            var asset = assetService.store(bytes, contentType, ref.alt(), locale);
+            var asset = assetService.store(bytes, contentTypeFor(ref.alt()), ref.alt(), locale);
             out = MarkdownImageRefs.rewrite(out, ref.url(), "/api/psychometric/assets/" + asset.getId());
         }
         return out;
+    }
+
+    /** Maps a filename/alt-text to its image content-type by extension (default PNG). */
+    private static String contentTypeFor(String name) {
+        String n = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".webp")) return "image/webp";
+        return "image/png";
+    }
+
+    /** Result of extracting at most one image ref from an option label. */
+    private record OptionImage(String label, UUID assetId) {}
+
+    /**
+     * Extracts a single markdown image ref from an option {@code label}: when present, resolves
+     * the bytes from the supplied image set, stores the asset, and returns the label with the
+     * image markdown removed (trimmed; may be {@code ""}) plus the new asset id. When no ref is
+     * present, or no image set was supplied, the label is returned unchanged with a null id.
+     * Refuse-partial: an unresolved ref against a non-empty image set throws.
+     */
+    private OptionImage resolveOptionImage(String label, Map<String, byte[]> imagesByNorm) {
+        if (label == null || label.isBlank()) return new OptionImage(label, null);
+        List<MarkdownImageRefs.Ref> refs = MarkdownImageRefs.extract(label);
+        if (refs.isEmpty()) return new OptionImage(label, null);
+        MarkdownImageRefs.Ref ref = refs.get(0);
+        byte[] bytes = imagesByNorm.get(MarkdownImageRefs.normalize(ref.alt()));
+        if (bytes == null) {
+            if (imagesByNorm.isEmpty()) return new OptionImage(label, null); // no image set supplied
+            throw new IllegalArgumentException("Option image not found in image set: " + ref.alt());
+        }
+        String locale = ref.alt().toLowerCase().replaceAll("[^a-z0-9]", "").contains("ara") ? "ar" : "en";
+        var asset = assetService.store(bytes, contentTypeFor(ref.alt()), ref.alt(), locale);
+        String stripped = MarkdownImageRefs.removeRef(label, ref).trim();
+        return new OptionImage(stripped, asset.getId());
     }
 
     /**

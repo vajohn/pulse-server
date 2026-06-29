@@ -392,4 +392,48 @@ class AssessmentImporterTest {
         assertThat(built.body()).contains("/api/psychometric/assets/" + assetId);
         assertThat(built.body()).doesNotContain("/api/backend/files");
     }
+
+    @Test
+    void importPackage_withImages_setsOptionImage_andStripsLabel() {
+        UUID testId = UUID.randomUUID();
+        UUID qId = UUID.randomUUID();
+        UUID scaleId = UUID.randomUUID();
+        UUID optId1 = UUID.randomUUID();
+        UUID optId2 = UUID.randomUUID();
+        UUID assetId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        when(admin.addQuestion(eq(testId), any(), any())).thenReturn(questionDto(qId, optId1, optId2));
+        when(admin.createScale(eq(testId), any(), any())).thenReturn(scaleDto(scaleId, "ATD"));
+        when(assetService.store(any(), any(), eq("optA.png"), any()))
+                .thenReturn(PsychometricAsset.builder().id(assetId).build());
+
+        // Option A's EN label carries a markdown image ref (no caption); option B is text-only.
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(new ParsedQuestion("Q1", "Which figure comes next?", "بيان",
+                        List.of(new ParsedOption("![optA.png](optA.png)", "أ", 1, 0),
+                                new ParsedOption("B", "ب", 2, 1)))),
+                List.of(new ScoringSheetScale("ATD", null, ScoreMethod.SUM,
+                        NormStrategyType.EMPIRICAL_PERCENTILE,
+                        null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(new ScoringSheetItem("Q1", "ATD", ScoreDirection.FORWARD,
+                        ItemStrategyType.ANSWER_KEY_SINGLE, 1.0, null)),
+                List.of(new AnswerKeyEntry("Q1", 2)));
+
+        Map<String, byte[]> images = Map.of("optA.png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
+
+        importer.importPackage(
+                new ImportPackageRequest("ATD", "desc", TestType.COGNITIVE, 600, null), pkg, images, UUID.randomUUID());
+
+        ArgumentCaptor<AddQuestionRequest> qCap = ArgumentCaptor.forClass(AddQuestionRequest.class);
+        verify(admin).addQuestion(eq(testId), qCap.capture(), any());
+        CandidateAnswerDto optA = qCap.getValue().candidateAnswers().get(0);
+        assertThat(optA.imageAssetId()).isEqualTo(assetId);
+        assertThat(optA.label()).isEqualTo("");                 // markdown stripped to empty
+        assertThat(optA.label()).doesNotContain("![");
+        // text-only option carries no image
+        CandidateAnswerDto optB = qCap.getValue().candidateAnswers().get(1);
+        assertThat(optB.imageAssetId()).isNull();
+        assertThat(optB.label()).isEqualTo("B");
+    }
 }
