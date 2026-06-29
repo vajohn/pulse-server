@@ -106,11 +106,15 @@ public class SurveyService {
 
         if (request.candidateAnswers() != null) {
             for (CandidateAnswerDto dto : request.candidateAnswers()) {
+                // label is NOT NULL at the DB level; an image-only option carries an empty
+                // (non-null) label rather than null.
                 CandidateAnswer ca = CandidateAnswer.builder()
                         .question(question)
-                        .label(dto.label())
+                        .label(dto.label() == null ? "" : dto.label())
                         .labelAr(dto.labelAr())
                         .displayOrder(dto.displayOrder())
+                        .imageAssetId(dto.imageAssetId())
+                        .imageAssetIdAr(dto.imageAssetIdAr())
                         .build();
                 candidateAnswerRepository.save(ca);
                 question.getCandidateAnswers().add(ca);
