@@ -14,6 +14,12 @@ spring:
   mvc:
     async:
       request-timeout: 25000
+  servlet:
+    multipart:
+      # Headroom above the 5MB AssetService guard so an oversize image trips the
+      # guard (→ 422 Unprocessable Entity) rather than the servlet limit (→ 413/500).
+      max-file-size: 6MB
+      max-request-size: 6MB
   jackson:
     deserialization:
       fail-on-null-for-primitives: false

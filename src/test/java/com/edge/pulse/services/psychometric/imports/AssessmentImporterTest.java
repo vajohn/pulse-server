@@ -436,4 +436,32 @@ class AssessmentImporterTest {
         assertThat(optB.imageAssetId()).isNull();
         assertThat(optB.label()).isEqualTo("B");
     }
+
+    @Test
+    void importPackage_withImages_optionRefMissingFromNonEmptySet_throwsRefusePartial() {
+        UUID testId = UUID.randomUUID();
+
+        when(admin.createTest(any(), any())).thenReturn(testDto(testId));
+        // addQuestion is never reached: resolveOptionImage throws while building the option list.
+
+        // Option A's EN label references optA.png, but the (non-empty) image set only carries other.png.
+        ParsedPackage pkg = new ParsedPackage(
+                List.of(new ParsedQuestion("Q1", "Which figure comes next?", "بيان",
+                        List.of(new ParsedOption("![optA.png](optA.png)", "أ", 1, 0),
+                                new ParsedOption("B", "ب", 2, 1)))),
+                List.of(new ScoringSheetScale("ATD", null, ScoreMethod.SUM,
+                        NormStrategyType.EMPIRICAL_PERCENTILE,
+                        null, null, null, null, null, null, null, null, List.of(), null, false)),
+                List.of(new ScoringSheetItem("Q1", "ATD", ScoreDirection.FORWARD,
+                        ItemStrategyType.ANSWER_KEY_SINGLE, 1.0, null)),
+                List.of(new AnswerKeyEntry("Q1", 2)));
+
+        // Non-empty image set that does NOT contain optA.png — must refuse-partial, not import silently.
+        Map<String, byte[]> images = Map.of("other.png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
+
+        assertThatThrownBy(() -> importer.importPackage(
+                new ImportPackageRequest("ATD", "desc", TestType.COGNITIVE, 600, null), pkg, images, UUID.randomUUID()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("optA.png");
+    }
 }

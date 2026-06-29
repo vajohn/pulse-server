@@ -254,12 +254,13 @@ public class AssessmentImporter {
         return out;
     }
 
-    /** Maps a filename/alt-text to its image content-type by extension (default PNG). */
+    /** Maps a filename/alt-text to its image content-type by extension. Rejects anything outside png/jpg/jpeg/webp. */
     private static String contentTypeFor(String name) {
         String n = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        if (n.endsWith(".png")) return "image/png";
         if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
         if (n.endsWith(".webp")) return "image/webp";
-        return "image/png";
+        throw new IllegalArgumentException("Unsupported image type: " + name);
     }
 
     /** Result of extracting at most one image ref from an option label. */

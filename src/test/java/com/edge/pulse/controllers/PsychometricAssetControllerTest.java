@@ -97,6 +97,13 @@ class PsychometricAssetControllerTest {
     }
 
     @Test
+    void upload_emptyFile_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "empty.png", "image/png", new byte[0]);
+        mvc.perform(multipart("/api/psychometric/assets").file(file))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void upload_oversize_maps422() throws Exception {
         byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
         MockMultipartFile file = new MockMultipartFile("file", "big.png", "image/png", png);
