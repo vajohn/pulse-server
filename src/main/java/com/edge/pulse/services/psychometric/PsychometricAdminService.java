@@ -224,7 +224,16 @@ public class PsychometricAdminService {
         PsychometricTest test = testRepository.findById(testId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        if (req.name() != null)         test.setName(req.name());
+        if (req.name() != null) {
+            test.setName(req.name());
+            // The test is backed by a Form whose `title` is what every assignment,
+            // list and the candidate app actually display. createTest() seeds both
+            // from the same name; keep them in sync on rename so the new name is
+            // visible everywhere (not just inside the editor, which reads test.name).
+            Form form = test.getForm();
+            form.setTitle(req.name());
+            formRepository.save(form);
+        }
         if (req.description() != null)  test.setDescription(req.description());
         if (req.instructions() != null) test.setInstructions(req.instructions());
         if (req.timeLimitSecs() != null) {

@@ -600,4 +600,33 @@ class PsychometricAdminServiceTest {
 
         assertThat(dto.instrument()).isEqualTo("PTI Plus");
     }
+
+    @Test
+    void updateTest_syncsBackingFormTitleOnRename() {
+        UUID testId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Form form = Form.builder().title("Old Name").build();
+        com.edge.pulse.data.models.psychometric.PsychometricTest test =
+                com.edge.pulse.data.models.psychometric.PsychometricTest.builder()
+                        .form(form).name("Old Name")
+                        .testType(com.edge.pulse.data.enums.TestType.PERSONALITY)
+                        .status(com.edge.pulse.data.enums.TestStatus.ACTIVE).version(1).build();
+        when(testRepository.findById(testId)).thenReturn(Optional.of(test));
+        when(testRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(formRepository.countActiveQuestionsByFormId(any())).thenReturn(0L);
+        when(testApprovalRequestRepository.findFirstByTestIdAndStatus(any(), any()))
+                .thenReturn(java.util.Optional.empty());
+
+        com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest req =
+                new com.edge.pulse.data.dto.psychometric.UpdatePsychometricTestRequest(
+                        "New Name", null, null, null, null);
+        com.edge.pulse.data.dto.psychometric.PsychometricTestDto dto =
+                adminService.updateTest(testId, req, actorId);
+
+        // Editor reads test.name; everything else (lists, assignments, candidate app)
+        // reads the backing form.title — both must reflect the new name.
+        assertThat(dto.name()).isEqualTo("New Name");
+        assertThat(form.getTitle()).isEqualTo("New Name");
+        verify(formRepository).save(form);
+    }
 }
