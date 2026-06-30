@@ -30,6 +30,9 @@ public record UserFilter(
 
     public UserFilter {
         roleNames = roleNames == null ? List.of() : roleNames;
+        // A non-positive staleDays would make the cutoff (now - staleDays) be now/future,
+        // matching essentially everyone and inverting the "stale" intent — treat as absent.
+        if (staleDays != null && staleDays <= 0) staleDays = null;
     }
 
     public static UserFilter empty() {

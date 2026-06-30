@@ -525,6 +525,20 @@ class UserServiceTest {
     }
 
     @Test
+    void getUsersPage_staleDaysNonPositive_isNoOp() {
+        // A non-positive staleDays must not invert the filter into "match everyone".
+        User never = user("never@x.com", "Never", true, null, null);
+        User recent = user("recent@x.com", "Recent", true, LocalDateTime.now().minusDays(1), null);
+        stubPassthrough(List.of(never, recent));
+
+        for (Integer bad : new Integer[]{0, -30}) {
+            UserFilter f = new UserFilter(null, List.of(), false, null, null, false, bad, null);
+            Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+            assertThat(emails(page)).containsExactly("never@x.com", "recent@x.com");
+        }
+    }
+
+    @Test
     void getUsersPage_syncSourceSaf_keepsSfProvisioned() {
         User saf = user("saf@x.com", "Saf", true, null, "122308");
         User x4 = user("x4@x.com", "X4", true, null, null);
