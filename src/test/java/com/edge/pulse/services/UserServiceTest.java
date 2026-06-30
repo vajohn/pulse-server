@@ -1,6 +1,7 @@
 package com.edge.pulse.services;
 
 import com.edge.pulse.data.dto.UpdateUserRequest;
+import com.edge.pulse.data.dto.UserFilter;
 import com.edge.pulse.data.dto.UserSummary;
 import com.edge.pulse.data.models.OrganizationalUnit;
 import com.edge.pulse.data.models.Role;
@@ -18,6 +19,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
@@ -338,5 +340,224 @@ class UserServiceTest {
 
         verify(userRepository).findAll();
         verify(userRepository, never()).findByDisplayNameContainingIgnoreCaseOrEmailContainingIgnoreCase(any(), any());
+    }
+
+    // -----------------------------------------------------------------------
+    // getUsersPage with UserFilter (feat/user-filters)
+    // -----------------------------------------------------------------------
+
+    /** Builds a user with the given attributes; roles are Role objects keyed by name. */
+    private static User user(String email, String displayName, boolean active,
+                             LocalDateTime lastLoginAt, String sfUserId, String... roleNames) {
+        Set<Role> roles = new HashSet<>();
+        for (String rn : roleNames) {
+            Role r = new Role();
+            r.setName(rn);
+            roles.add(r);
+        }
+        return User.builder()
+                .id(UUID.randomUUID())
+                .email(email)
+                .displayName(displayName)
+                .active(active)
+                .lastLoginAt(lastLoginAt)
+                .sfUserId(sfUserId)
+                .roles(roles)
+                .build();
+    }
+
+    /** Stubs scope passthrough + identity-ish toUserSummary echoing email so we can assert on results. */
+    private void stubPassthrough(List<User> users) {
+        when(userRepository.findAll()).thenReturn(users);
+        when(scopeService.filterByScope(eq(AUTH_USER_ID), anyList()))
+                .thenAnswer(inv -> inv.getArgument(1));
+        lenient().when(permissionCacheService.toUserSummary(any())).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            List<String> rn = u.getRoles() == null ? List.of()
+                    : u.getRoles().stream().map(Role::getName).toList();
+            return new UserSummary(u.getId(), u.getEmail(), u.getDisplayName(), null,
+                    rn, List.of(), null, null);
+        });
+    }
+
+    private List<String> emails(Page<UserSummary> page) {
+        return page.getContent().stream().map(UserSummary::email).toList();
+    }
+
+    @Test
+    void getUsersPage_emptyFilter_matchesPreviousBehaviour() {
+        User a = user("a@x.com", "Alice", true, null, null);
+        User b = user("b@x.com", "Bob", true, null, null);
+        stubPassthrough(List.of(a, b));
+
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID,
+                UserFilter.empty(), PageRequest.of(0, 20));
+
+        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(emails(page)).containsExactly("a@x.com", "b@x.com");
+    }
+
+    @Test
+    void getUsersPage_resultsSortedByEmailAscending() {
+        User a = user("zoe@x.com", "Zoe", true, null, null);
+        User b = user("amy@x.com", "Amy", true, null, null);
+        stubPassthrough(List.of(a, b));
+
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID,
+                UserFilter.empty(), PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("amy@x.com", "zoe@x.com");
+    }
+
+    @Test
+    void getUsersPage_qFilter_matchesNameOrEmailCaseInsensitive() {
+        User a = user("alice@x.com", "Alice Smith", true, null, null);
+        User b = user("bob@x.com", "Bob Jones", true, null, null);
+        stubPassthrough(List.of(a, b));
+
+        UserFilter f = new UserFilter("SMITH", List.of(), false, null, null, false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("alice@x.com");
+    }
+
+    @Test
+    void getUsersPage_qFilter_nullDisplayNameIsSafe() {
+        User a = user("alice@x.com", null, true, null, null);
+        stubPassthrough(List.of(a));
+
+        UserFilter f = new UserFilter("alice", List.of(), false, null, null, false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("alice@x.com");
+    }
+
+    @Test
+    void getUsersPage_roleNamesFilter_orWithin() {
+        User a = user("a@x.com", "A", true, null, null, "MANAGER");
+        User b = user("b@x.com", "B", true, null, null, "EMPLOYEE");
+        User c = user("c@x.com", "C", true, null, null, "HR_FULL_CRUD");
+        stubPassthrough(List.of(a, b, c));
+
+        UserFilter f = new UserFilter(null, List.of("MANAGER", "HR_FULL_CRUD"),
+                false, null, null, false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("a@x.com", "c@x.com");
+    }
+
+    @Test
+    void getUsersPage_noRolesFilter_keepsOnlyUsersWithoutRoles() {
+        User a = user("a@x.com", "A", true, null, null);            // no roles
+        User b = user("b@x.com", "B", true, null, null, "EMPLOYEE"); // has role
+        stubPassthrough(List.of(a, b));
+
+        UserFilter f = new UserFilter(null, List.of(), true, null, null, false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("a@x.com");
+    }
+
+    @Test
+    void getUsersPage_permissionFilter_usesAllExpansionViaPermissionCacheService() {
+        User a = user("a@x.com", "A", true, null, null, "ASSESSMENT_ADMIN");
+        User b = user("b@x.com", "B", true, null, null, "EMPLOYEE");
+        stubPassthrough(List.of(a, b));
+        // ASSESSMENT_ADMIN holds ASSESS_ALL which expands to include ASSESS_READ.
+        when(permissionCacheService.getPermissionsForRoles(List.of("ASSESSMENT_ADMIN")))
+                .thenReturn(Set.of("ASSESS_READ", "ASSESS_ALL"));
+        when(permissionCacheService.getPermissionsForRoles(List.of("EMPLOYEE")))
+                .thenReturn(Set.of("SPARK_NOMINATE"));
+
+        UserFilter f = new UserFilter(null, List.of(), false, "ASSESS_READ", null, false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("a@x.com");
+    }
+
+    @Test
+    void getUsersPage_statusActive_keepsActiveOnly() {
+        User a = user("a@x.com", "A", true, null, null);
+        User b = user("b@x.com", "B", false, null, null);
+        stubPassthrough(List.of(a, b));
+
+        UserFilter f = new UserFilter(null, List.of(), false, null, "active", false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("a@x.com");
+    }
+
+    @Test
+    void getUsersPage_statusInactive_keepsInactiveOnly() {
+        User a = user("a@x.com", "A", true, null, null);
+        User b = user("b@x.com", "B", false, null, null);
+        stubPassthrough(List.of(a, b));
+
+        UserFilter f = new UserFilter(null, List.of(), false, null, "INACTIVE", false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("b@x.com");
+    }
+
+    @Test
+    void getUsersPage_neverLoggedIn_keepsNullLastLogin() {
+        User a = user("a@x.com", "A", true, null, null);                              // never
+        User b = user("b@x.com", "B", true, LocalDateTime.now().minusDays(1), null);  // logged in
+        stubPassthrough(List.of(a, b));
+
+        UserFilter f = new UserFilter(null, List.of(), false, null, null, true, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("a@x.com");
+    }
+
+    @Test
+    void getUsersPage_staleDays_keepsNeverLoggedInOrOlderThanCutoff() {
+        User never = user("never@x.com", "Never", true, null, null);
+        User old = user("old@x.com", "Old", true, LocalDateTime.now().minusDays(90), null);
+        User recent = user("recent@x.com", "Recent", true, LocalDateTime.now().minusDays(1), null);
+        stubPassthrough(List.of(never, old, recent));
+
+        UserFilter f = new UserFilter(null, List.of(), false, null, null, false, 30, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("never@x.com", "old@x.com");
+    }
+
+    @Test
+    void getUsersPage_syncSourceSaf_keepsSfProvisioned() {
+        User saf = user("saf@x.com", "Saf", true, null, "122308");
+        User x4 = user("x4@x.com", "X4", true, null, null);
+        stubPassthrough(List.of(saf, x4));
+
+        UserFilter f = new UserFilter(null, List.of(), false, null, null, false, null, "SAF");
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("saf@x.com");
+    }
+
+    @Test
+    void getUsersPage_syncSourceX4auth_keepsNonSf() {
+        User saf = user("saf@x.com", "Saf", true, null, "122308");
+        User x4 = user("x4@x.com", "X4", true, null, null);
+        stubPassthrough(List.of(saf, x4));
+
+        UserFilter f = new UserFilter(null, List.of(), false, null, null, false, null, "X4AUTH");
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("x4@x.com");
+    }
+
+    @Test
+    void getUsersPage_combinedFilters_allMustHold() {
+        User match = user("match@x.com", "Match", true, null, null, "MANAGER");
+        User wrongStatus = user("a@x.com", "A", false, null, null, "MANAGER");
+        User wrongRole = user("b@x.com", "B", true, null, null, "EMPLOYEE");
+        stubPassthrough(List.of(match, wrongStatus, wrongRole));
+
+        UserFilter f = new UserFilter(null, List.of("MANAGER"), false, null, "active", false, null, null);
+        Page<UserSummary> page = userService.getUsersPage(null, AUTH_USER_ID, f, PageRequest.of(0, 20));
+
+        assertThat(emails(page)).containsExactly("match@x.com");
     }
 }

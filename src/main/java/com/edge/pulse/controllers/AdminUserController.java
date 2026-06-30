@@ -31,12 +31,29 @@ public class AdminUserController {
     @PreAuthorize("hasAuthority('USR_READ')")
     public ResponseEntity<Page<UserSummary>> getUsers(
             @RequestParam(required = false) UUID orgUnitId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) List<String> roleNames,
+            @RequestParam(required = false) Boolean noRoles,
+            @RequestParam(required = false) String permission,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Boolean neverLoggedIn,
+            @RequestParam(required = false) Integer staleDays,
+            @RequestParam(required = false) String syncSource,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication auth) {
         UUID authUserId = (UUID) auth.getPrincipal();
+        UserFilter filter = new UserFilter(
+                q,
+                roleNames == null ? List.of() : roleNames,
+                noRoles != null && noRoles,
+                permission,
+                status,
+                neverLoggedIn != null && neverLoggedIn,
+                staleDays,
+                syncSource);
         PageRequest pageable = PageRequest.of(page, Math.min(size, 100), Sort.by("email").ascending());
-        return ResponseEntity.ok(userService.getUsersPage(orgUnitId, authUserId, pageable));
+        return ResponseEntity.ok(userService.getUsersPage(orgUnitId, authUserId, filter, pageable));
     }
 
     @GetMapping("/search")
