@@ -81,6 +81,11 @@ public class FormCacheService {
         return "assignments:v3:user:" + userId;
     }
 
+    /** Glob matching every per-user assignment-list key (for org-targeted evictions). */
+    public static String userAssignmentsKeyPattern() {
+        return "assignments:v3:user:*";
+    }
+
     public void evictByPattern(String pattern) {
         try {
             ScanOptions options = ScanOptions.scanOptions().match(pattern).count(200).build();

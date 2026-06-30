@@ -128,16 +128,9 @@ public class AssignmentService {
                         "userId", request.userId()),
                 null);
 
-        // Evict assignment caches for affected users.
-        // For org-unit assignments we do not SCAN all user keys — the TTL provides
-        // a bounded stale window. Org assignments change only on admin action and
-        // user impact is bounded to cacheTtlProps.assignmentTtlMinutes.
-        if (request.userId() != null) {
-            cacheService.evict(FormCacheService.userAssignmentsKey(request.userId()));
-        } else {
-            log.debug("Org-unit assignment created; user caches will expire within {} min",
-                    cacheTtlProps.getAssignmentTtlMinutes());
-        }
+        // Evict assignment caches for affected users so the new assignment is visible
+        // on their next fetch (org-targeted writes evict all cached lists by pattern).
+        evictAssignmentCaches(request.userId());
 
         return saved;
     }
@@ -285,12 +278,7 @@ public class AssignmentService {
         assignment.setActive(false);
         assignmentRepository.save(assignment);
 
-        if (assignment.getUser() != null) {
-            cacheService.evict(FormCacheService.userAssignmentsKey(assignment.getUser().getId()));
-        } else {
-            log.debug("Org-unit assignment deactivated; user caches will expire within {} min",
-                    cacheTtlProps.getAssignmentTtlMinutes());
-        }
+        evictAssignmentCaches(assignment.getUser() != null ? assignment.getUser().getId() : null);
     }
 
     public AssignmentDto updateAssignment(UUID assignmentId, UpdateFormAssignmentRequest request) {
@@ -304,12 +292,7 @@ public class AssignmentService {
         if (request.allowResubmission() != null) assignment.setAllowResubmission(request.allowResubmission());
         assignmentRepository.save(assignment);
 
-        if (assignment.getUser() != null) {
-            cacheService.evict(FormCacheService.userAssignmentsKey(assignment.getUser().getId()));
-        } else {
-            log.debug("Org-unit assignment updated; user caches will expire within {} min",
-                    cacheTtlProps.getAssignmentTtlMinutes());
-        }
+        evictAssignmentCaches(assignment.getUser() != null ? assignment.getUser().getId() : null);
 
         return assignmentMapper.toDto(assignment);
     }
@@ -320,12 +303,7 @@ public class AssignmentService {
         assignment.setActive(true);
         assignmentRepository.save(assignment);
 
-        if (assignment.getUser() != null) {
-            cacheService.evict(FormCacheService.userAssignmentsKey(assignment.getUser().getId()));
-        } else {
-            log.debug("Org-unit assignment reactivated; user caches will expire within {} min",
-                    cacheTtlProps.getAssignmentTtlMinutes());
-        }
+        evictAssignmentCaches(assignment.getUser() != null ? assignment.getUser().getId() : null);
     }
 
     public void hardDeleteAssignment(UUID assignmentId) {
@@ -335,6 +313,25 @@ public class AssignmentService {
             throw new IllegalStateException("Cannot permanently delete an active assignment. Archive it first.");
         }
         assignmentRepository.deleteById(assignmentId);
+    }
+
+    /**
+     * Invalidate the per-user assignment-list cache after a write so candidates see
+     * the change on their next fetch instead of waiting out the TTL.
+     *
+     * <p>User-targeted writes evict that one key. Org-targeted writes (userId == null)
+     * affect an unknown set of users — up to the whole org — so we evict every
+     * <em>cached</em> assignment-list key by pattern. The SCAN only visits keys that
+     * actually exist (recently-active users), so affected users are always invalidated
+     * and unaffected users harmlessly re-fetch identical data; no org-subtree
+     * enumeration is needed.
+     */
+    private void evictAssignmentCaches(UUID userId) {
+        if (userId != null) {
+            cacheService.evict(FormCacheService.userAssignmentsKey(userId));
+        } else {
+            cacheService.evictByPattern(FormCacheService.userAssignmentsKeyPattern());
+        }
     }
 
     @Transactional(readOnly = true)

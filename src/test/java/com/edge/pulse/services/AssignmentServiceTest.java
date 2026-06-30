@@ -113,6 +113,77 @@ class AssignmentServiceTest {
                 .doesNotThrowAnyException();
     }
 
+    // ----- cache eviction on write (org-targeted writes must invalidate affected users) -----
+
+    @Test
+    void createAssignment_orgTarget_evictsAllCachedAssignmentListsByPattern() {
+        Form form = Form.builder().id(FORM_ID).title("Form").build();
+        OrganizationalUnit orgUnit = OrganizationalUnit.builder().id(ORG_ID).path("/org/").build();
+        User caller = User.builder().id(CALLER_ID).build();
+        FormAssignment saved = FormAssignment.builder().id(UUID.randomUUID()).form(form).build();
+
+        when(formRepository.findById(FORM_ID)).thenReturn(Optional.of(form));
+        when(formRepository.countActiveQuestionsByFormId(FORM_ID)).thenReturn(3L);
+        when(orgUnitRepository.findById(ORG_ID)).thenReturn(Optional.of(orgUnit));
+        when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(caller));
+        when(assignmentRepository.existsByFormIdAndOrgUnitIdAndActiveTrue(FORM_ID, ORG_ID)).thenReturn(false);
+        when(assignmentRepository.save(any())).thenReturn(saved);
+
+        service.createAssignment(
+                new CreateAssignmentRequest(FORM_ID, ORG_ID, null, null, null, null, true, true, false),
+                CALLER_ID);
+
+        verify(cacheService).evictByPattern(FormCacheService.userAssignmentsKeyPattern());
+        verify(cacheService, never()).evict(anyString());
+    }
+
+    @Test
+    void createAssignment_userTarget_evictsOnlyThatUserCache() {
+        Form form = Form.builder().id(FORM_ID).title("Form").build();
+        User caller = User.builder().id(CALLER_ID).build();
+        User target = User.builder().id(USER_ID).build();
+        FormAssignment saved = FormAssignment.builder().id(UUID.randomUUID()).form(form).build();
+
+        when(formRepository.findById(FORM_ID)).thenReturn(Optional.of(form));
+        when(formRepository.countActiveQuestionsByFormId(FORM_ID)).thenReturn(3L);
+        when(userRepository.findById(CALLER_ID)).thenReturn(Optional.of(caller));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(target));
+        when(assignmentRepository.existsByFormIdAndUserIdAndActiveTrue(FORM_ID, USER_ID)).thenReturn(false);
+        when(assignmentRepository.save(any())).thenReturn(saved);
+
+        service.createAssignment(
+                new CreateAssignmentRequest(FORM_ID, null, USER_ID, null, null, null, true, false, false),
+                CALLER_ID);
+
+        verify(cacheService).evict(FormCacheService.userAssignmentsKey(USER_ID));
+        verify(cacheService, never()).evictByPattern(anyString());
+    }
+
+    @Test
+    void deactivateAssignment_orgTarget_evictsAllCachedAssignmentListsByPattern() {
+        UUID id = UUID.randomUUID();
+        FormAssignment assignment = FormAssignment.builder().id(id).user(null).build();
+        when(assignmentRepository.findById(id)).thenReturn(Optional.of(assignment));
+
+        service.deactivateAssignment(id);
+
+        verify(cacheService).evictByPattern(FormCacheService.userAssignmentsKeyPattern());
+        verify(cacheService, never()).evict(anyString());
+    }
+
+    @Test
+    void deactivateAssignment_userTarget_evictsOnlyThatUserCache() {
+        UUID id = UUID.randomUUID();
+        User target = User.builder().id(USER_ID).build();
+        FormAssignment assignment = FormAssignment.builder().id(id).user(target).build();
+        when(assignmentRepository.findById(id)).thenReturn(Optional.of(assignment));
+
+        service.deactivateAssignment(id);
+
+        verify(cacheService).evict(FormCacheService.userAssignmentsKey(USER_ID));
+        verify(cacheService, never()).evictByPattern(anyString());
+    }
+
     @Test
     void createAssignment_throwsIllegalArgument_whenFormNotFound() {
         when(formRepository.findById(FORM_ID)).thenReturn(Optional.empty());
